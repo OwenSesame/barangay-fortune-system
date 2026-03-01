@@ -7,19 +7,22 @@ const router = express.Router();
 
 // REGISTRATION ROUTE (Only for Residents)
 router.post('/register', async (req, res) => {
-    const { firstName, lastName, dateOfBirth, address, contactNumber, email, password } = req.body;
+    // We added middleName and civilStatus here
+    const { firstName, lastName, middleName, dateOfBirth, civilStatus, address, contactNumber, email, password } = req.body;
 
     try {
-        // Scramble the password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
         const sql = `INSERT INTO Resident_ProfileTable 
-        (first_name, last_name, date_of_birth, addres_street, contact_number, email_address, password_hash) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)`;
+        (first_name, last_name, middle_name, date_of_birth, civil_status, addres_street, contact_number, email_address, password_hash) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-        db.query(sql, [firstName, lastName, dateOfBirth, address, contactNumber, email, hashedPassword], (err, result) => {
-            if (err) return res.status(500).json({ error: "Email might already exist or database error." });
+        db.query(sql, [firstName, lastName, middleName, dateOfBirth, civilStatus, address, contactNumber, email, hashedPassword], (err, result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: "Email might already exist or database error." });
+            }
             res.status(201).json({ message: "Resident registered successfully!" });
         });
     } catch (error) {
