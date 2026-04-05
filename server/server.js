@@ -13,6 +13,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static('uploads')); // Grants access to view uploaded images
 
 // Set up routes
 app.use('/api/auth', authRoutes);
