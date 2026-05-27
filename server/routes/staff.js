@@ -123,4 +123,28 @@ router.get('/document-records', (req, res) => {
     });
 });
 
+// NEW: Fetch current staff profile & permissions
+router.get('/profile/:id', (req, res) => {
+    const sql = `SELECT official_id, full_name, role, can_review FROM Barangay_OfficialsTable WHERE official_id = ?`;
+    db.query(sql, [req.params.id], (err, results) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (results.length === 0) return res.status(404).json({ error: "Staff not found" });
+        res.json(results[0]);
+    });
+});
+
+// GET: Dashboard Stats for Staff
+router.get('/dashboard-stats', (req, res) => {
+    const stats = {};
+    // Count only active requests for the staff view
+    db.query(`SELECT 
+        (SELECT COUNT(*) FROM Document_RequestTable WHERE status = 'Pending') as pending,
+        (SELECT COUNT(*) FROM Document_RequestTable WHERE status = 'Ready to Print') as ready,
+        (SELECT COUNT(*) FROM Document_RequestTable WHERE status = 'Released') as released`, 
+    (err, results) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        res.json(results[0]);
+    });
+});
+
 export default router;

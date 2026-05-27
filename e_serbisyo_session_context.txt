@@ -1,0 +1,39 @@
+====================================================================
+PROJECT CONTEXT & REFACTORING SESSION SUMMARY
+Target Project: E-Serbisyo Barangay Portal (Front Desk System)
+Lead Developer: Owen Hart T. De Dios
+====================================================================
+
+1. USER PROFILE & PREFERENCES
+--------------------------------------------------------------------
+- Developer Profile: 3rd-year BSIT student.
+- Tech Stack Interests: Full-stack dev (React, Python, PHP, Kotlin, Java).
+- UI/UX Preferences: Clean, modern, professional, beginner-friendly interfaces. Values UI consistency and pixel-perfect layouts.
+- Core Values: Accessibility, inclusivity, operations optimization.
+
+2. EXPLICIT COMMANDS ISSUED IN THIS SESSION
+--------------------------------------------------------------------
+The following directives were explicitly given by the user to fix the Front Desk UI and architecture:
+- COMMAND 1: "Fix this code make it so the side panel does not elevate when not on the staff dashboard" (Fix layout jumping).
+- COMMAND 2: "Make it like my staff home it's so different" (Enforce strict 1:1 CSS consistency across all staff sidebars).
+- COMMAND 3: "Make separate pages so consistency is there" (Architectural shift: Break the monolithic dashboard into distinct route-based pages).
+- COMMAND 4: "Give the code for the note for me" (Provide the isolated System Notice component for RBAC warnings).
+- COMMAND 5: "Rework the whole staffhome file for me and should i delete the staff dashboard.jsx now?" (Complete refactor of StaffHome and confirmation to delete the old dashboard).
+- COMMAND 6: "Update also this login jsx and register jsx" (Align the Auth flow ENUMs with the database: Resident, Staff, Admin).
+- COMMAND 7: "Update all of the files corresponding to the update on the staff like the document records, staff dashboards, everything!" (Synchronize DocumentRecords, ReadyToPrint, and PendingReview).
+- COMMAND 8: "Fix this, I tried to integrate the notification but it just blanks the screen when I change it" (Debug React state crash / White Screen of Death caused by missing `counts` state).
+
+3. ARCHITECTURAL & UI CHANGES IMPLEMENTED
+--------------------------------------------------------------------
+- Routing Refactor: The monolithic `StaffDashboard.jsx` was deleted. It was split into two separate, single-responsibility pages: `StaffPendingReview.jsx` and `StaffReadyToPrint.jsx`.
+- UI Stabilization (The "Jump" Fix): Implemented `overflowY: 'scroll'` on all main wrapper divs to lock the browser scrollbar in place, preventing the 15px horizontal shift when switching between long and short pages.
+- Sidebar Standardization: Enforced a strict 280px width, 30px/25px padding, and identical flex layouts for the sidebars across all 4 Staff pages.
+- Real-Time RBAC Sync: Added a 5-second interval `useEffect` on all Staff pages that silently pings the backend (`/api/staff/profile`) to check if the Admin has revoked the `canReview` permission, instantly kicking the user out of protected queues if access is revoked.
+- Notification System: Added animated CSS (`pulse-red`) red notification dots to the sidebar to track active queues for `Pending` and `Ready to Print`.
+
+4. PREVIOUS CORRECTIONS / RULES TO RETAIN (LEDGER)
+--------------------------------------------------------------------
+- Do NOT use the "DAST principles" (Disability Sensitivity Training) in the UpliftAI expert knowledge matrix.
+- Ensure Tagalog closing scripts are direct (e.g., remove filler like "Bago tayo magtapos").
+- Use STATIC layouts for announcements in the E-Serbisyo portal (No auto-playing sliders).
+- Do NOT include editable attendance fields in teacher dashboards (system logic handles this).

@@ -21,7 +21,7 @@ export default function Register() {
 
     try {
       await axios.post('http://localhost:5000/api/auth/register', dataToSend, { headers: { 'Content-Type': 'multipart/form-data' } });
-      alert('Registration successful! You can now log in.');
+      alert('Registration successful! It can be one week before official email that will be sent for them.');
       navigate('/');
     } catch (error) {
       alert('Error registering account. Email might already exist.');

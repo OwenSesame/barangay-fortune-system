@@ -12,7 +12,7 @@ node server.js
 client
 npm install
 npm install react-router-dom axios
-npm run dev 
+npm run dev
 
 kung gusto makita ang luma na code
 git checkout 192980d78600aa29858e0dd6a716cad61b1b5062

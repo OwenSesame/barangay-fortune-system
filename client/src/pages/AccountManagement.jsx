@@ -4,186 +4,330 @@ import axios from 'axios';
 
 export default function AccountManagement() {
   const navigate = useNavigate();
-  const [accounts, setAccounts] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('Staff'); 
   
-  // States for the Modals
-  const [updateModal, setUpdateModal] = useState({ isOpen: false, data: null });
+  const [staffList, setStaffList] = useState([]);
+  const [residentList, setResidentList] = useState([]);
+  const [badgeCounts, setBadgeCounts] = useState({ pending: 0, ready: 0, residentApprovals: 0 });
+  
+  const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
+  const [newStaff, setNewStaff] = useState({ full_name: '', username: '', password: '' });
+  
+  // UPDATED: Edit Modal state now holds all specific profile fields
+  const [editModal, setEditModal] = useState({ 
+    isOpen: false, id: null, type: '', 
+    full_name: '', username: '', 
+    first_name: '', last_name: '', contact_number: '', email_address: '' 
+  });
 
-  const fetchAccounts = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/admin/accounts');
-      setAccounts(response.data);
+      // Toggle Feature Staff List
+      const staffRes = await axios.get('http://localhost:5000/api/admin/staff-list');
+      
+      // Main Unified Accounts List
+      const accountsRes = await axios.get('http://localhost:5000/api/admin/accounts');
+      
+      const officialsOnly = accountsRes.data.filter(acc => acc.account_type === 'official' && acc.role === 'Staff');
+      const residentsOnly = accountsRes.data.filter(acc => acc.account_type === 'resident');
+      
+      // Merge the toggle permissions with the full profile data
+      const mergedStaff = officialsOnly.map(official => {
+        const toggleData = staffRes.data.find(s => s.user_id === official.id);
+        return { ...official, can_review: toggleData ? toggleData.can_review : 0 };
+      });
+
+      setStaffList(mergedStaff);
+      setResidentList(residentsOnly);
     } catch (error) {
       console.error("Failed to fetch accounts", error);
     }
   };
 
+  // Fetch Notification Counts
   useEffect(() => {
-    fetchAccounts();
+    const fetchCounts = async () => {
+      try {
+        const [requestsRes, residentsRes] = await Promise.all([
+            axios.get('http://localhost:5000/api/staff/pending-requests'),
+            axios.get('http://localhost:5000/api/admin/pending-residents')
+        ]);
+        const pending = requestsRes.data.filter(req => req.status === 'Pending').length;
+        const ready = requestsRes.data.filter(req => req.status === 'Ready to Print').length;
+        const residentApprovals = residentsRes.data.length;
+        setBadgeCounts({ pending, ready, residentApprovals });
+      } catch (error) {
+        console.error("Failed to fetch notification counts", error);
+      }
+    };
+    
+    fetchData();
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
-  // --- DELETE FUNCTION ---
-  const handleDelete = async (id, account_type) => {
-    // Official System Safeguard per documentation
-    if (!window.confirm("Are you sure to Delete this?")) return;
-
+  const handleAddStaff = async (e) => {
+    e.preventDefault();
     try {
-      await axios.delete('http://localhost:5000/api/admin/accounts/delete', {
-        data: { id, account_type }
-      });
-      alert("Account Deleted.");
-      fetchAccounts();
-    } catch (error) {
-      alert("Error: Cannot delete this user because they have active document records linked to their account.");
-    }
+      await axios.post('http://localhost:5000/api/admin/create-staff', newStaff);
+      setIsAddStaffOpen(false);
+      setNewStaff({ full_name: '', username: '', password: '' });
+      fetchData();
+      alert("New Staff Account Successfully Created!");
+    } catch (error) { alert("Error creating staff account. Username might be taken."); }
   };
 
-  // --- UPDATE SUBMIT FUNCTION ---
-  const submitUpdate = async (e) => {
+  const handleUpdateAccount = async (e) => {
     e.preventDefault();
     try {
       await axios.put('http://localhost:5000/api/admin/accounts/update', {
-        id: updateModal.data.id,
-        account_type: updateModal.data.account_type,
-        name: updateModal.data.name,
-        role: updateModal.data.role
+        id: editModal.id,
+        account_type: editModal.type,
+        full_name: editModal.full_name,
+        username: editModal.username,
+        first_name: editModal.first_name,
+        last_name: editModal.last_name,
+        contact_number: editModal.contact_number,
+        email_address: editModal.email_address
       });
-      alert("Account updated successfully!");
-      setUpdateModal({ isOpen: false, data: null });
-      fetchAccounts();
-    } catch (error) {
-      alert("Failed to update account.");
-    }
+      setEditModal({ isOpen: false, id: null, type: '', full_name: '', username: '', first_name: '', last_name: '', contact_number: '', email_address: '' });
+      fetchData();
+      alert("Account information updated successfully!");
+    } catch (error) { alert("Error updating account details."); }
   };
 
-  // Live Search Filter
-  const filteredAccounts = accounts.filter(acc => 
-    acc.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    acc.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleToggleAccess = async (staffId, currentAccess) => {
+    try {
+      const newAccess = currentAccess === 1 ? 0 : 1; 
+      await axios.put(`http://localhost:5000/api/admin/staff/${staffId}/toggle-access`, { can_review: newAccess });
+      fetchData();
+    } catch (error) { alert("Error updating permissions."); }
+  };
+
+  const handleDeleteAccount = async (id, type) => {
+    if (!window.confirm(`WARNING: Are you sure you want to permanently delete this ${type} account?`)) return;
+    try {
+      await axios.delete('http://localhost:5000/api/admin/accounts/delete', { data: { id, account_type: type } });
+      fetchData();
+    } catch (error) { alert("Cannot delete account. They may have active records."); }
+  };
+
+  // Open the edit modal and populate the specific fields
+  const openEditModal = (user) => {
+    setEditModal({
+      isOpen: true,
+      id: user.id,
+      type: user.account_type,
+      full_name: user.full_name || '',
+      username: user.username || '',
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      contact_number: user.contact_number || '',
+      email_address: user.email_address || ''
+    });
+  };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#f8fafc' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#f1f5f9' }}>
       
-      {/* Administrator Sidebar */}
-      <div style={{ width: '260px', background: '#1e1b4b', color: 'white', padding: '30px 20px', display: 'flex', flexDirection: 'column' }}>
+      <style>
+        {`
+          @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+          }
+          .notification-dot {
+            display: inline-flex; align-items: center; justify-content: center;
+            background: #ef4444; color: white; border-radius: 50%;
+            min-width: 20px; height: 20px; font-size: 11px; font-weight: bold;
+            margin-left: 10px; animation: pulse-red 2s infinite;
+          }
+          .ui-tab {
+            padding: 10px 24px; border-radius: 30px; font-weight: bold; font-size: 14px; cursor: pointer;
+            transition: all 0.3s ease; border: none; outline: none;
+          }
+          .ui-tab.active { background: #1e1b4b; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+          .ui-tab.inactive { background: transparent; color: #64748b; }
+          .ui-tab.inactive:hover { background: #e2e8f0; color: #334155; }
+          .custom-table th { padding: 16px 24px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
+          .custom-table td { padding: 16px 24px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; }
+          .custom-table tr:hover { background-color: #f8fafc; }
+          .btn-action { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; }
+          .btn-edit { background: #f1f5f9; color: #3b82f6; border: 1px solid #cbd5e1; }
+          .btn-edit:hover { background: #e0f2fe; border-color: #7dd3fc; }
+          .btn-delete { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+          .btn-delete:hover { background: #fee2e2; border-color: #fca5a5; }
+        `}
+      </style>
+
+      {/* Admin Sidebar */}
+      <div style={{ width: '260px', background: '#1e1b4b', color: 'white', padding: '30px 20px', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
         <h2 style={{ fontSize: '22px', margin: '0 0 40px 0', borderBottom: '1px solid #3730a3', paddingBottom: '15px' }}>Barangay Fortune</h2>
         <div style={{ flex: 1 }}>
-          <p onClick={() => navigate('/admin-dashboard')} style={{ margin: '15px 0', cursor: 'pointer', color: '#a5b4fc' }}>🏠 Home</p>
-          <p style={{ margin: '15px 0', cursor: 'pointer', fontWeight: 'bold', color: 'white' }}>👤 Account Management</p>
-          <p onClick={() => navigate('/pending-review')} style={{ margin: '15px 0', cursor: 'pointer', color: '#a5b4fc' }}>📋 Pending Review</p>
-          <p onClick={() => navigate('/ready-to-print')} style={{ margin: '15px 0', cursor: 'pointer', color: '#a5b4fc' }}>🔖 Ready to Print</p>
-          <p onClick={() => navigate('/document-management')} style={{ margin: '15px 0', cursor: 'pointer', color: '#a5b4fc' }}>📄 Document Templates</p>
+          <p onClick={() => navigate('/admin-dashboard')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/admin-dashboard' ? 'bold' : 'normal', color: window.location.pathname === '/admin-dashboard' ? 'white' : '#a5b4fc' }}>🏠 Home</p>
+          <p onClick={() => navigate('/resident-approvals')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/resident-approvals' ? 'bold' : 'normal', color: window.location.pathname === '/resident-approvals' ? 'white' : '#a5b4fc' }}>🛂 Resident Approvals{badgeCounts.residentApprovals > 0 && <span className="notification-dot">{badgeCounts.residentApprovals}</span>}</p>
+          <p onClick={() => navigate('/account-management')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/account-management' ? 'bold' : 'normal', color: window.location.pathname === '/account-management' ? 'white' : '#a5b4fc' }}>👤 Account Management</p>
+          <p onClick={() => navigate('/document-management')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/document-management' ? 'bold' : 'normal', color: window.location.pathname === '/document-management' ? 'white' : '#a5b4fc' }}>📄 Document Templates</p>
+          <p onClick={() => navigate('/pending-review')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/pending-review' ? 'bold' : 'normal', color: window.location.pathname === '/pending-review' ? 'white' : '#a5b4fc' }}>📋 Pending Review{badgeCounts.pending > 0 && <span className="notification-dot">{badgeCounts.pending}</span>}</p>
+          <p onClick={() => navigate('/ready-to-print')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/ready-to-print' ? 'bold' : 'normal', color: window.location.pathname === '/ready-to-print' ? 'white' : '#a5b4fc' }}>🔖 Ready to Print{badgeCounts.ready > 0 && <span className="notification-dot">{badgeCounts.ready}</span>}</p>
+          <p onClick={() => navigate('/audit-logs')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/audit-logs' ? 'bold' : 'normal', color: window.location.pathname === '/audit-logs' ? 'white' : '#a5b4fc' }}>🔒 System Audit Logs</p>
         </div>
-        <button onClick={handleLogout} style={{ padding: '10px', background: 'white', color: '#1e1b4b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
+        <button onClick={() => {localStorage.clear(); navigate('/');}} style={{ padding: '10px', background: 'white', color: '#1e1b4b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
       </div>
 
-      {/* Main Content Area */}
-      <div style={{ flex: 1, padding: '40px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <h1 style={{ margin: 0, color: '#0f172a', fontSize: '28px' }}>Account Management</h1>
+      <div style={{ flex: 1, padding: '40px 50px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '30px' }}>
+          <div>
+            <h1 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '32px', letterSpacing: '-0.5px' }}>Account Management</h1>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>Control system access, update profiles, and manage permissions.</p>
+          </div>
+          {activeTab === 'Staff' && (
+            <button onClick={() => setIsAddStaffOpen(true)} style={{ padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)' }}>
+              + Add Front Desk Staff
+            </button>
+          )}
         </div>
 
-        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-          
-          {/* Top Bar with Search */}
-          <div style={{ padding: '20px 25px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, color: '#334155' }}>System Users ({filteredAccounts.length})</h3>
-            <input 
-              type="text" 
-              placeholder="🔍 Search Users..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ padding: '10px 15px', width: '300px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }}
-            />
-          </div>
-          
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left', fontSize: '14px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '15px 25px' }}>No.</th>
-                <th style={{ padding: '15px 25px' }}>Name</th>
-                <th style={{ padding: '15px 25px' }}>Role</th>
-                <th style={{ padding: '15px 25px', width: '200px' }}>Action</th>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', background: '#e2e8f0', padding: '6px', borderRadius: '40px', width: 'fit-content' }}>
+          <button onClick={() => setActiveTab('Staff')} className={`ui-tab ${activeTab === 'Staff' ? 'active' : 'inactive'}`}>👨‍💼 Front Desk Team</button>
+          <button onClick={() => setActiveTab('Residents')} className={`ui-tab ${activeTab === 'Residents' ? 'active' : 'inactive'}`}>🏘️ Registered Residents</button>
+        </div>
+
+        <div style={{ background: 'white', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+          <table className="custom-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead style={{ background: '#f8fafc' }}>
+              <tr>
+                <th>Profile Name</th>
+                <th>System Role</th>
+                {activeTab === 'Staff' && <th>Pending Review Access</th>}
+                <th style={{ textAlign: 'right' }}>Management Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredAccounts.length > 0 ? (
-                filteredAccounts.map((acc, index) => (
-                  <tr key={`${acc.account_type}-${acc.id}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '15px 25px', color: '#64748b', fontWeight: 'bold' }}>{index + 1}</td>
-                    <td style={{ padding: '15px 25px', color: '#0f172a', fontWeight: '500' }}>{acc.name}</td>
-                    <td style={{ padding: '15px 25px' }}>
-                      <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', background: acc.role === 'Admin' ? '#fef08a' : acc.role === 'Staff' ? '#dbeafe' : '#f1f5f9', color: acc.role === 'Admin' ? '#854d0e' : acc.role === 'Staff' ? '#1e40af' : '#475569' }}>
-                        {acc.role}
-                      </span>
+              {activeTab === 'Staff' ? (
+                staffList.length > 0 ? staffList.map((staff) => (
+                  <tr key={staff.id}>
+                  <td>
+                    <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>{staff.name}</div>
+                    <div style={{ color: '#64748b', fontSize: '13px', marginTop: '4px' }}>@{staff.username}</div>
                     </td>
-                    <td style={{ padding: '15px 25px' }}>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => setUpdateModal({ isOpen: true, data: { ...acc } })} style={{ padding: '6px 12px', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                          Update
-                        </button>
-                        <button onClick={() => handleDelete(acc.id, acc.account_type)} style={{ padding: '6px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                          Delete
-                        </button>
+                    <td><span style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #cbd5e1' }}>Front Desk Staff</span></td>
+                    <td>
+                      <button onClick={() => handleToggleAccess(staff.id, staff.can_review)} style={{ padding: '8px 16px', borderRadius: '30px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', transition: 'all 0.2s', background: staff.can_review === 1 ? '#dcfce7' : '#f1f5f9', color: staff.can_review === 1 ? '#166534' : '#64748b' }}>
+                        {staff.can_review === 1 ? '🟢 Access Granted' : '🔒 Access Revoked'}
+                      </button>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => openEditModal(staff)} className="btn-action btn-edit">Edit</button>
+                        <button onClick={() => handleDeleteAccount(staff.id, 'official')} className="btn-action btn-delete">Delete</button>
                       </div>
                     </td>
                   </tr>
-                ))
+                )) : <tr><td colSpan="4" style={{ padding: '50px', textAlign: 'center', color: '#94a3b8' }}>No staff members found.</td></tr>
               ) : (
-                <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No matching accounts found.</td></tr>
+                residentList.length > 0 ? residentList.map((res) => (
+                  <tr key={res.id}>
+                    <td>
+                      <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>{res.first_name} {res.last_name}</div>
+                      <div style={{ color: '#64748b', fontSize: '13px', marginTop: '4px' }}>{res.email_address} | {res.contact_number}</div>
+                    </td>
+                    <td><span style={{ padding: '6px 12px', background: '#eff6ff', color: '#1d4ed8', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #bfdbfe' }}>Resident</span></td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => openEditModal(res)} className="btn-action btn-edit">Edit Profile</button>
+                        <button onClick={() => handleDeleteAccount(res.id, 'resident')} className="btn-action btn-delete">Remove</button>
+                      </div>
+                    </td>
+                  </tr>
+                )) : <tr><td colSpan="3" style={{ padding: '50px', textAlign: 'center', color: '#94a3b8' }}>No registered residents found.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* --- UPDATE USER MODAL --- */}
-      {updateModal.isOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '400px' }}>
-            <h2 style={{ margin: '0 0 20px 0', color: '#0f172a' }}>Update Account</h2>
-            
-            <form onSubmit={submitUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      {/* --- ADD NEW STAFF MODAL --- */}
+      {isAddStaffOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '420px' }}>
+            <h2 style={{ margin: '0 0 25px 0', color: '#0f172a', fontSize: '24px' }}>Register New Staff</h2>
+            <form onSubmit={handleAddStaff} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', color: '#475569', fontWeight: 'bold' }}>Full Name</label>
-                <input 
-                  type="text" 
-                  value={updateModal.data.name} 
-                  onChange={(e) => setUpdateModal({ ...updateModal, data: { ...updateModal.data, name: e.target.value } })} 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
-                  required
-                />
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Full Name</label>
+                <input type="text" value={newStaff.full_name} onChange={(e) => setNewStaff({ ...newStaff, full_name: e.target.value })} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box', background: '#f8fafc', outline: 'none' }} required />
               </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Username</label>
+                <input type="text" value={newStaff.username} onChange={(e) => setNewStaff({ ...newStaff, username: e.target.value })} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box', background: '#f8fafc', outline: 'none' }} required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Password</label>
+                <input type="password" value={newStaff.password} onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box', background: '#f8fafc', outline: 'none' }} required />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setIsAddStaffOpen(false)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, padding: '12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-              {/* Only let them change roles for Officials, Residents are strictly Residents */}
-              {updateModal.data.account_type === 'official' && (
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', color: '#475569', fontWeight: 'bold' }}>System Role</label>
-                  <select 
-                    value={updateModal.data.role} 
-                    onChange={(e) => setUpdateModal({ ...updateModal, data: { ...updateModal.data, role: e.target.value } })} 
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
-                  >
-                    <option value="Admin">Admin</option>
-                    <option value="Staff">Staff</option>
-                  </select>
-                </div>
+      {/* --- DYNAMIC EDIT ACCOUNT MODAL --- */}
+      {editModal.isOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '450px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '25px' }}>
+              <span style={{ fontSize: '24px' }}>✏️</span>
+              <h2 style={{ margin: 0, color: '#0f172a', fontSize: '24px' }}>Edit {editModal.type === 'official' ? 'Staff' : 'Resident'} Profile</h2>
+            </div>
+            
+            <form onSubmit={handleUpdateAccount} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              
+              {/* STAFF FIELDS */}
+              {editModal.type === 'official' && (
+                <>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Full Name</label>
+                    <input type="text" value={editModal.full_name} onChange={(e) => setEditModal({ ...editModal, full_name: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Username</label>
+                    <input type="text" value={editModal.username} onChange={(e) => setEditModal({ ...editModal, username: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  </div>
+                </>
               )}
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" style={{ flex: 1, padding: '10px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  Update
-                </button>
-                <button type="button" onClick={() => setUpdateModal({ isOpen: false, data: null })} style={{ flex: 1, padding: '10px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  Cancel
-                </button>
+              {/* RESIDENT FIELDS */}
+              {editModal.type === 'resident' && (
+                <>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>First Name</label>
+                      <input type="text" value={editModal.first_name} onChange={(e) => setEditModal({ ...editModal, first_name: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Last Name</label>
+                      <input type="text" value={editModal.last_name} onChange={(e) => setEditModal({ ...editModal, last_name: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Contact Number</label>
+                    <input type="text" value={editModal.contact_number} onChange={(e) => setEditModal({ ...editModal, contact_number: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Email Address</label>
+                    <input type="email" value={editModal.email_address} onChange={(e) => setEditModal({ ...editModal, email_address: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  </div>
+                </>
+              )}
+              
+              <div style={{ display: 'flex', gap: '12px', marginTop: '15px' }}>
+                <button type="button" onClick={() => setEditModal({ isOpen: false, id: null, type: '', full_name: '', username: '', first_name: '', last_name: '', contact_number: '', email_address: '' })} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, padding: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Save Changes</button>
               </div>
             </form>
           </div>

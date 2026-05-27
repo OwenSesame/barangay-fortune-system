@@ -30,12 +30,12 @@ router.post('/register', upload.single('id_proof'), async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Added id_proof_image to the SQL query
+        // Added id_proof_image and account_status to the SQL query
         const sql = `INSERT INTO Resident_ProfileTable 
-        (first_name, last_name, middle_name, date_of_birth, civil_status, addres_street, contact_number, email_address, password_hash, id_proof_image) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        (first_name, last_name, middle_name, date_of_birth, civil_status, addres_street, contact_number, email_address, password_hash, id_proof_image, account_status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-        db.query(sql, [firstName, lastName, middleName, dateOfBirth, civilStatus, address, contactNumber, email, hashedPassword, idProofImage], (err, result) => {
+        db.query(sql, [firstName, lastName, middleName, dateOfBirth, civilStatus, address, contactNumber, email, hashedPassword, idProofImage, 'Pending'], (err, result) => {
             if (err) {
                 console.error(err);
                 return res.status(500).json({ error: "Database error or email exists." });
@@ -79,9 +79,17 @@ router.post('/login', async (req, res) => {
 
         const user = result[0];
 
-        // 3. Security Check for Suspended Residents
-        if (dbRole === 'Resident' && user.account_status === 'Suspended') {
-            return res.status(403).json({ error: "Account suspended. Please visit the Barangay Hall." });
+        // 3. Security Check for Suspended/Pending/Rejected Residents
+        if (dbRole === 'Resident') {
+            if (user.account_status === 'Suspended') {
+                return res.status(403).json({ error: "Account suspended. Please visit the Barangay Hall." });
+            }
+            if (user.account_status === 'Pending') {
+                return res.status(403).json({ error: "Account pending approval. Please wait for the admin to verify your registration." });
+            }
+            if (user.account_status === 'Rejected') {
+                return res.status(403).json({ error: "Registration rejected. Please visit the Barangay Hall or try registering again." });
+            }
         }
 
         // 4. Verify Password

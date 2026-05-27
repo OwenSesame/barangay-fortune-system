@@ -7,16 +7,38 @@ export default function PendingReview() {
   const [requests, setRequests] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState(null);
   
-  // Custom Modals for Admin Validation
-  const [approvalModal, setApprovalModal] = useState({ isOpen: false, id: null });
-  const [denialModal, setDenialModal] = useState({ isOpen: false, id: null, reason: '' });
+  // 1. STATE: Hold the live counts for the notification badges
+  const [badgeCounts, setBadgeCounts] = useState({ pending: 0, ready: 0, residentApprovals: 0 });
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const [requestsRes, residentsRes] = await Promise.all([
+            axios.get('http://localhost:5000/api/staff/pending-requests'),
+            axios.get('http://localhost:5000/api/admin/pending-residents')
+        ]);
+        const pending = requestsRes.data.filter(req => req.status === 'Pending').length;
+        const ready = requestsRes.data.filter(req => req.status === 'Ready to Print').length;
+        const residentApprovals = residentsRes.data.length;
+        setBadgeCounts({ pending, ready, residentApprovals });
+      } catch (error) {
+        console.error("Failed to fetch notification counts", error);
+      }
+    };
+    
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchPendingRequests = async () => {
     try {
-      // We reuse the staff route, but we will filter it to ONLY show 'Pending' for the Admin
       const response = await axios.get('http://localhost:5000/api/staff/pending-requests');
+      
+      // Filter for the main table
       const pendingOnly = response.data.filter(req => req.status === 'Pending');
       setRequests(pendingOnly);
+
     } catch (error) {
       console.error("Failed to fetch requests", error);
     }
@@ -24,34 +46,34 @@ export default function PendingReview() {
 
   useEffect(() => {
     fetchPendingRequests();
+    // 2. TIMER: Check the database every 5 seconds in the background
     const interval = setInterval(fetchPendingRequests, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // --- Official Admin Actions ---
-  const handleApprove = async () => {
+  const handleApprove = async (requestId) => {
     try {
       const adminId = localStorage.getItem('userId');
-      await axios.put(`http://localhost:5000/api/staff/update-status/${approvalModal.id}`, {
+      await axios.put(`http://localhost:5000/api/staff/update-status/${requestId}`, {
         status: 'Ready to Print',
         official_id: adminId
       });
-      setApprovalModal({ isOpen: false, id: null });
-      fetchPendingRequests();
+      fetchPendingRequests(); 
     } catch (error) {
       alert("Error approving request.");
     }
   };
 
-  const handleDeny = async (e) => {
-    e.preventDefault();
+  const handleDeny = async (requestId) => {
+    const reason = window.prompt("⚠️ Enter reason for denial:");
+    if (!reason) return;
+
     try {
       const adminId = localStorage.getItem('userId');
-      await axios.put(`http://localhost:5000/api/staff/reject/${denialModal.id}`, {
+      await axios.put(`http://localhost:5000/api/staff/reject/${requestId}`, {
         official_id: adminId,
-        reason: denialModal.reason
+        reason: reason
       });
-      setDenialModal({ isOpen: false, id: null, reason: '' });
       fetchPendingRequests();
     } catch (error) {
       alert("Error denying request.");
@@ -66,15 +88,42 @@ export default function PendingReview() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#f8fafc' }}>
       
+      {/* 3. CSS: The pulsing animation for the red dot */}
+      <style>
+        {`
+          @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+          }
+          .notification-dot {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            min-width: 20px;
+            height: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 10px;
+            animation: pulse-red 2s infinite;
+          }
+        `}
+      </style>
+
       {/* Administrator Sidebar */}
       <div style={{ width: '260px', background: '#1e1b4b', color: 'white', padding: '30px 20px', display: 'flex', flexDirection: 'column' }}>
         <h2 style={{ fontSize: '22px', margin: '0 0 40px 0', borderBottom: '1px solid #3730a3', paddingBottom: '15px' }}>Barangay Fortune</h2>
         <div style={{ flex: 1 }}>
-          <p onClick={() => navigate('/admin-dashboard')} style={{ margin: '15px 0', cursor: 'pointer', color: '#a5b4fc' }}>🏠 Home</p>
-          <p onClick={() => navigate('/account-management')} style={{ margin: '15px 0', cursor: 'pointer', color: '#a5b4fc' }}>👤 Account Management</p>
-          <p style={{ margin: '15px 0', cursor: 'pointer', fontWeight: 'bold', color: 'white' }}>📋 Pending Review</p>
-          <p onClick={() => navigate('/ready-to-print')} style={{ margin: '15px 0', cursor: 'pointer', color: '#a5b4fc' }}>🔖 Ready to Print</p>
-          <p onClick={() => navigate('/document-management')} style={{ margin: '15px 0', cursor: 'pointer', color: '#a5b4fc' }}>📄 Document Templates</p>
+          <p onClick={() => navigate('/admin-dashboard')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/admin-dashboard' ? 'bold' : 'normal', color: window.location.pathname === '/admin-dashboard' ? 'white' : '#a5b4fc' }}>🏠 Home</p>
+          <p onClick={() => navigate('/resident-approvals')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/resident-approvals' ? 'bold' : 'normal', color: window.location.pathname === '/resident-approvals' ? 'white' : '#a5b4fc' }}>🛂 Resident Approvals{badgeCounts.residentApprovals > 0 && <span className="notification-dot">{badgeCounts.residentApprovals}</span>}</p>
+          <p onClick={() => navigate('/account-management')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/account-management' ? 'bold' : 'normal', color: window.location.pathname === '/account-management' ? 'white' : '#a5b4fc' }}>👤 Account Management</p>
+          <p onClick={() => navigate('/document-management')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/document-management' ? 'bold' : 'normal', color: window.location.pathname === '/document-management' ? 'white' : '#a5b4fc' }}>📄 Document Templates</p>
+          <p onClick={() => navigate('/pending-review')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/pending-review' ? 'bold' : 'normal', color: window.location.pathname === '/pending-review' ? 'white' : '#a5b4fc' }}>📋 Pending Review{badgeCounts.pending > 0 && <span className="notification-dot">{badgeCounts.pending}</span>}</p>
+          <p onClick={() => navigate('/ready-to-print')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/ready-to-print' ? 'bold' : 'normal', color: window.location.pathname === '/ready-to-print' ? 'white' : '#a5b4fc' }}>🔖 Ready to Print{badgeCounts.ready > 0 && <span className="notification-dot">{badgeCounts.ready}</span>}</p>
+          <p onClick={() => navigate('/audit-logs')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/audit-logs' ? 'bold' : 'normal', color: window.location.pathname === '/audit-logs' ? 'white' : '#a5b4fc' }}>🔒 System Audit Logs</p>
         </div>
         <button onClick={handleLogout} style={{ padding: '10px', background: 'white', color: '#1e1b4b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
       </div>
@@ -120,10 +169,10 @@ export default function PendingReview() {
                     </td>
                     <td style={{ padding: '15px 25px' }}>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => setApprovalModal({ isOpen: true, id: req.request_id })} style={{ padding: '8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>
+                        <button onClick={() => handleApprove(req.request_id)} style={{ padding: '8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>
                           Approve
                         </button>
-                        <button onClick={() => setDenialModal({ isOpen: true, id: req.request_id, reason: '' })} style={{ padding: '8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>
+                        <button onClick={() => handleDeny(req.request_id)} style={{ padding: '8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>
                           Deny
                         </button>
                       </div>
@@ -138,45 +187,7 @@ export default function PendingReview() {
         </div>
       </div>
 
-      {/* --- APPROVAL CONFIRMATION MODAL --- */}
-      {approvalModal.isOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '400px', textAlign: 'center' }}>
-            <div style={{ fontSize: '40px', marginBottom: '10px' }}>✅</div>
-            <h2 style={{ margin: '0 0 10px 0', color: '#0f172a' }}>Confirm Approval</h2>
-            <p style={{ color: '#64748b', marginBottom: '25px' }}>Are you sure you want to officially approve this document and send it to the printing queue?</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={handleApprove} style={{ flex: 1, padding: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Yes, Approve</button>
-              <button onClick={() => setApprovalModal({ isOpen: false, id: null })} style={{ flex: 1, padding: '12px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- DENIAL CONFIRMATION MODAL --- */}
-      {denialModal.isOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '400px' }}>
-            <h2 style={{ margin: '0 0 10px 0', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>⚠️ Deny Application</h2>
-            <p style={{ color: '#64748b', marginBottom: '20px', fontSize: '14px' }}>Please provide an official reason for denying this request. This will be sent to the resident's dashboard.</p>
-            <form onSubmit={handleDeny}>
-              <textarea 
-                placeholder="Type reason here (e.g., Expired ID, Mismatched Address)..." 
-                value={denialModal.reason}
-                onChange={(e) => setDenialModal({ ...denialModal, reason: e.target.value })}
-                style={{ width: '100%', height: '100px', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginBottom: '20px', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'none' }}
-                required
-              />
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" style={{ flex: 1, padding: '12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Submit Denial</button>
-                <button type="button" onClick={() => setDenialModal({ isOpen: false, id: null, reason: '' })} style={{ flex: 1, padding: '12px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Side-by-Side Review Modal (Reused from Staff Dashboard for Admin Verification) */}
+      {/* Attachments Modal */}
       {selectedFiles && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '1000px' }}>
