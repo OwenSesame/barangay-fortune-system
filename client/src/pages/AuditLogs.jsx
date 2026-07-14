@@ -38,6 +38,21 @@ export default function AuditLogs() {
     fetchCounts();
     const interval = setInterval(fetchCounts, 5000);
   
+    return () => clearInterval(interval);
+  }, []);
+
+  // Filter Logic: Search by Action, Details, User, or Date
+  const filteredLogs = logs.filter(log => {
+    const matchesSearch = 
+      log.action_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.user_name && log.user_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesDate = dateFilter === '' || log.timestamp.startsWith(dateFilter);
+    
+    return matchesSearch && matchesDate;
+  });
+
   // FEATURE 8: Export to CSV
   const exportToCSV = () => {
     if (filteredLogs.length === 0) return alert("No logs to export.");
@@ -57,21 +72,6 @@ export default function AuditLogs() {
     document.body.appendChild(link);
     link.click();
   };
-
-  return () => clearInterval(interval);
-  }, []);
-
-  // Filter Logic: Search by Action, Details, User, or Date
-  const filteredLogs = logs.filter(log => {
-    const matchesSearch = 
-      log.action_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.user_name && log.user_name.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesDate = dateFilter === '' || log.timestamp.startsWith(dateFilter);
-    
-    return matchesSearch && matchesDate;
-  });
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: '"Segoe UI", sans-serif', backgroundColor: '#f1f5f9' }}>
