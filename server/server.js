@@ -9,6 +9,7 @@ import requestRoutes from './routes/requests.js';
 import staffRoutes from './routes/staff.js';
 import queueRoutes from './routes/queue.js';
 import adminRoutes from './routes/admin.js';
+import settingsRoutes from './routes/settings.js';
 
 const app = express();
 
@@ -21,7 +22,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/queue', queueRoutes);
-app.use('/api/admin', adminRoutes); // <-- ADD THIS LINE
+app.use('/api/admin', adminRoutes);
+app.use('/api/settings', settingsRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

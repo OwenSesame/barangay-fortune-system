@@ -1,18 +1,9 @@
 import express from 'express';
 import db from '../db.js';
 import bcrypt from 'bcrypt';
-import nodemailer from 'nodemailer';
+import transporter from '../utils/mailer.js';
 
 const router = express.Router();
-
-// Configure Nodemailer Transporter
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER || 'dummy@gmail.com',
-        pass: process.env.EMAIL_PASS || 'dummy_password'
-    }
-});
 
 // HELPER: Record an action in the audits_logstable
 const recordLog = (adminId, action, details) => {
@@ -86,6 +77,7 @@ router.get('/accounts', (req, res) => {
             'Resident' as role, 
             'resident' as account_type 
         FROM resident_profiletable
+        WHERE account_status != 'Archived'
         ORDER BY role ASC, name ASC
     `;
     db.query(sql, (err, results) => {
@@ -123,23 +115,26 @@ router.put('/accounts/update', (req, res) => {
     });
 });
 
-// DELETE: Permanently Remove an Account and Log it
-router.delete('/accounts/delete', (req, res) => {
+// ARCHIVE: Soft Delete an Account
+router.put('/accounts/archive', (req, res) => {
     const { id, account_type } = req.body;
     const adminId = 5; // Replace with req.user.id
 
-    const sql = account_type === 'official' 
-        ? `DELETE FROM barangay_officialstable WHERE official_id = ?` 
-        : `DELETE FROM resident_profiletable WHERE resident_id = ?`;
-
-    db.query(sql, [id], (err) => {
-        if (err) return res.status(500).json({ error: "Database error. Cannot delete user with active records." });
-
-        // LOG THE ACTION
-        recordLog(adminId, "Account Deletion", `Permanently deleted ${account_type} account (ID: ${id})`);
-        
-        res.json({ message: "Account permanently deleted." });
-    });
+    if (account_type === 'official') {
+        // Staff don't have transaction histories tied to them directly in the same way, so hard delete is fine.
+        db.query(`DELETE FROM barangay_officialstable WHERE official_id = ?`, [id], (err) => {
+            if (err) return res.status(500).json({ error: "Cannot delete staff. Active audit logs exist." });
+            recordLog(adminId, "Account Deletion", `Permanently deleted staff account (ID: ${id})`);
+            res.json({ message: "Staff account deleted." });
+        });
+    } else {
+        // RESIDENT: Soft Delete (Archive) to preserve transaction history!
+        db.query(`UPDATE resident_profiletable SET account_status = 'Archived' WHERE resident_id = ?`, [id], (err) => {
+            if (err) return res.status(500).json({ error: "Database error." });
+            recordLog(adminId, "Account Archived", `Archived resident account (ID: ${id}) to preserve transaction history.`);
+            res.json({ message: "Resident account safely archived." });
+        });
+    }
 });
 // --- ADMIN DOCUMENT TEMPLATE MANAGEMENT ---
 
@@ -300,6 +295,40 @@ router.put('/reject-resident/:id', (req, res) => {
         });
 
         res.json({ message: "Resident rejected successfully." });
+    });
+});
+
+// FEATURE 7: Live Dashboard Analytics
+router.get('/analytics', (req, res) => {
+    const analytics = {};
+    
+    // Top 5 Most Requested Documents
+    const topReasonsSql = `
+        SELECT doc.doc_name as name, COUNT(req.request_id) as value
+        FROM Document_RequestTable req
+        JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
+        GROUP BY doc.doc_type_id
+        ORDER BY value DESC
+        LIMIT 5
+    `;
+    
+    db.query(topReasonsSql, (err1, res1) => {
+        if (err1) return res.status(500).json({ error: "Database error" });
+        analytics.topReasons = res1;
+        
+        // Transaction Volume by Status
+        const volumeSql = `
+            SELECT status as name, COUNT(request_id) as value
+            FROM Document_RequestTable
+            GROUP BY status
+        `;
+        
+        db.query(volumeSql, (err2, res2) => {
+            if (err2) return res.status(500).json({ error: "Database error" });
+            analytics.volume = res2;
+            
+            res.json(analytics);
+        });
     });
 });
 

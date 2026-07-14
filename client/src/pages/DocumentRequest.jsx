@@ -5,10 +5,12 @@ import { useNavigate } from 'react-router-dom';
 export default function DocumentRequest() {
   const navigate = useNavigate();
   const [availableDocs, setAvailableDocs] = useState([]);
+  const [availableDates, setAvailableDates] = useState([]);
   
   // State variables to hold the form data
   const [docType, setDocType] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
   const [requirementFile, setRequirementFile] = useState(null);
 
   useEffect(() => {
@@ -19,11 +21,14 @@ export default function DocumentRequest() {
     // Fetch the EXACT list of active documents using the Resident route
     const fetchDocs = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/requests/documents');
-        // The backend already filters for available=1, so we just set the data!
-        setAvailableDocs(response.data);
+        const [docsRes, datesRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/requests/documents'),
+          axios.get('http://localhost:5000/api/requests/available-dates')
+        ]);
+        setAvailableDocs(docsRes.data);
+        setAvailableDates(datesRes.data);
       } catch (err) {
-        console.error("Error fetching documents:", err);
+        console.error("Error fetching data:", err);
       }
     };
 
@@ -33,6 +38,7 @@ export default function DocumentRequest() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!docType) return alert("Please select a document type.");
+    if (!scheduledDate) return alert("Please select an appointment date.");
     if (!requirementFile) return alert("Please upload the required document/ID.");
 
     const myId = localStorage.getItem('userId');
@@ -42,6 +48,7 @@ export default function DocumentRequest() {
     formData.append('resident_id', myId);
     formData.append('doc_type_id', docType);
     formData.append('purpose', purpose);
+    formData.append('scheduled_date', scheduledDate);
     formData.append('requirement_file', requirementFile);
 
     try {
@@ -99,6 +106,24 @@ export default function DocumentRequest() {
                   <option key={doc.doc_type_id} value={doc.doc_type_id}>
                     {/* HERE IS THE PESO SIGN RESTORED! */}
                     {doc.doc_name} (Fee: ₱{doc.base_fee})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Appointment Date Dropdown */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#334155', fontWeight: '500' }}>Select Appointment Date</label>
+              <select 
+                value={scheduledDate} 
+                onChange={(e) => setScheduledDate(e.target.value)} 
+                style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '15px', backgroundColor: '#f8fafc' }}
+                required
+              >
+                <option value="" disabled>-- Select a Date --</option>
+                {availableDates.map((d, index) => (
+                  <option key={index} value={d.date} disabled={d.isFull} style={{ color: d.isFull ? '#ef4444' : '#1e293b' }}>
+                    {d.display} {d.isFull ? '(QUEUE FULL)' : ''}
                   </option>
                 ))}
               </select>

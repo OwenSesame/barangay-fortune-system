@@ -5,7 +5,7 @@ import axios from 'axios';
 export default function ResidentDashboard() {
   const navigate = useNavigate();
   
-  const [queueInfo, setQueueInfo] = useState({ queueNumber: '--', status: 'Pending' });
+  const [queueInfo, setQueueInfo] = useState({ queueNumber: '--', status: 'Pending', scheduledDate: null });
   const [history, setHistory] = useState([]);
 
   // --- UPGRADED: Translation with Fail-Safes ---
@@ -27,7 +27,8 @@ export default function ResidentDashboard() {
         setQueueInfo({
           queueNumber: queueResponse.data.daily_sequence_no,
           // Add a fallback in case the database column is empty
-          status: queueResponse.data.request_status || 'Pending' 
+          status: queueResponse.data.request_status || 'Pending',
+          scheduledDate: queueResponse.data.scheduled_date
         });
       }
 
@@ -89,6 +90,11 @@ export default function ResidentDashboard() {
           <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderLeft: '5px solid #3b82f6' }}>
             <h4 style={{ color: '#6b7280', margin: '0 0 10px 0', textTransform: 'uppercase', fontSize: '12px' }}>Your Latest Queue</h4>
             <p style={{ fontSize: '42px', fontWeight: 'bold', color: '#1e3a8a', margin: 0 }}>{queueInfo.queueNumber}</p>
+            {queueInfo.scheduledDate && (
+              <p style={{ color: '#64748b', fontSize: '12px', margin: '5px 0 0 0', fontWeight: 'bold' }}>
+                For: {new Date(queueInfo.scheduledDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+            )}
           </div>
           
           <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', 
@@ -115,7 +121,8 @@ export default function ResidentDashboard() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left', fontSize: '14px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '15px 25px' }}>Date</th>
+                <th style={{ padding: '15px 25px' }}>Requested</th>
+                <th style={{ padding: '15px 25px' }}>Pick-up Date</th>
                 <th style={{ padding: '15px 25px' }}>Document Type</th>
                 <th style={{ padding: '15px 25px' }}>Status</th>
                 <th style={{ padding: '15px 25px' }}>Action</th>
@@ -131,6 +138,7 @@ export default function ResidentDashboard() {
                   return (
                     <tr key={req.request_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '15px 25px', color: '#64748b', fontSize: '14px' }}>{new Date(req.date_requested).toLocaleDateString()}</td>
+                      <td style={{ padding: '15px 25px', color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>{req.pick_up_date ? new Date(req.pick_up_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</td>
                       
                       {/* Using the safe document name */}
                       <td style={{ padding: '15px 25px', fontWeight: '500', color: '#1e293b' }}>{safeDocName}</td>

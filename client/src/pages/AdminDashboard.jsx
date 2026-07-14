@@ -1,3 +1,4 @@
+import AdminSidebar from '../components/AdminSidebar';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -86,23 +87,7 @@ export default function AdminDashboard() {
       </style>
 
       {/* Dynamic Auto-Highlighting Sidebar */}
-      <div style={{ width: '260px', background: '#1e1b4b', color: 'white', padding: '30px 20px', display: 'flex', flexDirection: 'column' }}>
-        <h2 style={{ fontSize: '22px', margin: '0 0 40px 0', borderBottom: '1px solid #3730a3', paddingBottom: '15px' }}>
-          Barangay Fortune
-        </h2>
-        <div style={{ flex: 1 }}>
-          <p onClick={() => navigate('/admin-dashboard')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/admin-dashboard' ? 'bold' : 'normal', color: window.location.pathname === '/admin-dashboard' ? 'white' : '#a5b4fc' }}>🏠 Home</p>
-          <p onClick={() => navigate('/resident-approvals')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/resident-approvals' ? 'bold' : 'normal', color: window.location.pathname === '/resident-approvals' ? 'white' : '#a5b4fc' }}>🛂 Resident Approvals{badgeCounts.residentApprovals > 0 && <span className="notification-dot">{badgeCounts.residentApprovals}</span>}</p>
-          <p onClick={() => navigate('/account-management')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/account-management' ? 'bold' : 'normal', color: window.location.pathname === '/account-management' ? 'white' : '#a5b4fc' }}>👤 Account Management</p>
-          <p onClick={() => navigate('/document-management')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/document-management' ? 'bold' : 'normal', color: window.location.pathname === '/document-management' ? 'white' : '#a5b4fc' }}>📄 Document Templates</p>
-          <p onClick={() => navigate('/pending-review')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/pending-review' ? 'bold' : 'normal', color: window.location.pathname === '/pending-review' ? 'white' : '#a5b4fc' }}>📋 Pending Review{badgeCounts.pending > 0 && <span className="notification-dot">{badgeCounts.pending}</span>}</p>
-          <p onClick={() => navigate('/ready-to-print')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/ready-to-print' ? 'bold' : 'normal', color: window.location.pathname === '/ready-to-print' ? 'white' : '#a5b4fc' }}>🔖 Ready to Print{badgeCounts.ready > 0 && <span className="notification-dot">{badgeCounts.ready}</span>}</p>
-          <p onClick={() => navigate('/audit-logs')} style={{ margin: '15px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: window.location.pathname === '/audit-logs' ? 'bold' : 'normal', color: window.location.pathname === '/audit-logs' ? 'white' : '#a5b4fc' }}>🔒 System Audit Logs</p>
-        </div>
-        <button onClick={handleLogout} style={{ padding: '10px', background: 'white', color: '#1e1b4b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-          Logout
-        </button>
-      </div>
+      <AdminSidebar badgeCounts={badgeCounts} />
 
       {/* Main Content Area */}
       <div style={{ flex: 1, padding: '40px' }}>

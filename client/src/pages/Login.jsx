@@ -82,7 +82,14 @@ export default function Login() {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', color: '#334155', fontWeight: '600', fontSize: '13px', textTransform: 'uppercase' }}>Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ color: '#334155', fontWeight: '600', fontSize: '13px', textTransform: 'uppercase', margin: 0 }}>Password</label>
+              {role === 'Resident' && (
+                <span onClick={() => navigate('/forgot-password')} style={{ color: '#2563eb', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
+                  Forgot Password?
+                </span>
+              )}
+            </div>
             <input 
               type="password" 
               placeholder="Enter your password" 

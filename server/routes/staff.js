@@ -1,3 +1,4 @@
+import { sendNotificationEmail } from '../utils/mailer.js';
 import express from 'express';
 import db from '../db.js';
 
@@ -44,22 +45,39 @@ router.put('/update-status/:id', (req, res) => {
     const { status, official_id } = req.body;
     const requestId = req.params.id;
 
-    // 1. Update the document's status
-    const sql = `UPDATE Document_RequestTable SET status = ? WHERE request_id = ?`;
-    
-    db.query(sql, [status, requestId], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: "Database error" });
-        }
+    // 1. Fetch names for the log
+    const nameSql = `
+        SELECT res.first_name, res.last_name, res.email_address, doc.doc_name, off.full_name as staff_name
+        FROM Document_RequestTable req
+        JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
+        JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
+        LEFT JOIN Barangay_OfficialsTable off ON off.official_id = ?
+        WHERE req.request_id = ?
+    `;
+    db.query(nameSql, [official_id, requestId], (nameErr, nameRes) => {
+        if (nameErr) return res.status(500).json({ error: "Database error" });
+        const residentName = nameRes.length > 0 ? `${nameRes[0].first_name} ${nameRes[0].last_name}` : 'Unknown Resident';
+        const docName = nameRes.length > 0 ? nameRes[0].doc_name : 'Document';
+        const staffName = nameRes.length > 0 && nameRes[0].staff_name ? nameRes[0].staff_name : 'Staff';
 
-        // 2. Save this action to the Admin Audit Logs!
-        const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
-        const logDetails = `Updated Request #${requestId} to status: ${status}`;
+        // 2. Update the document's status
+        const sql = `UPDATE Document_RequestTable SET status = ? WHERE request_id = ?`;
         
-        db.query(logSql, [official_id, 'Process Document', logDetails], (logErr) => {
-            if (logErr) console.error("Log error:", logErr); 
-            res.json({ message: `Status successfully changed to ${status}` });
+        db.query(sql, [status, requestId], (err, result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: "Database error" });
+            }
+
+            // 3. Save this action to the Admin Audit Logs!
+            const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
+            const logDetails = `Staff ${staffName} updated ${docName} Request #${requestId} for Resident ${residentName} to status: ${status}`;
+            
+            db.query(logSql, [official_id, 'Process Document', logDetails], (logErr) => {
+                if (logErr) console.error("Log error:", logErr); 
+                if (status === 'Ready to Print' && nameRes[0]?.email_address) { sendNotificationEmail(nameRes[0].email_address, 'Barangay Document Ready', `Good day ${residentName}! Your requested ${docName} is now Approved and Ready to Print. Please proceed to the Barangay Hall to claim it.`); }
+                res.json({ message: `Status successfully changed to ${status}` });
+            });
         });
     });
 });
@@ -87,19 +105,75 @@ router.put('/reject/:id', (req, res) => {
     const { official_id, reason } = req.body;
     const requestId = req.params.id;
 
-    // 1. Change the status to Rejected
-   const sql = `UPDATE Document_RequestTable SET status = 'Rejected', remarks = ? WHERE request_id = ?`;
-    
-    db.query(sql, [reason, requestId], (err, result) => {
-        if (err) return res.status(500).json({ error: "Database error" });
+    // 1. Fetch names for the log
+    const nameSql = `
+        SELECT res.first_name, res.last_name, doc.doc_name, off.full_name as staff_name
+        FROM Document_RequestTable req
+        JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
+        JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
+        LEFT JOIN Barangay_OfficialsTable off ON off.official_id = ?
+        WHERE req.request_id = ?
+    `;
+    db.query(nameSql, [official_id, requestId], (nameErr, nameRes) => {
+        if (nameErr) return res.status(500).json({ error: "Database error" });
+        const residentName = nameRes.length > 0 ? `${nameRes[0].first_name} ${nameRes[0].last_name}` : 'Unknown Resident';
+        const docName = nameRes.length > 0 ? nameRes[0].doc_name : 'Document';
+        const staffName = nameRes.length > 0 && nameRes[0].staff_name ? nameRes[0].staff_name : 'Staff';
 
-        // 2. Log this specific action and the reason to the Audit Logs
-        const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
-        const logDetails = `Rejected Request #${requestId}. Reason: ${reason}`;
+        // 2. Change the status to Rejected
+        const sql = `UPDATE Document_RequestTable SET status = 'Rejected', remarks = ? WHERE request_id = ?`;
         
-        db.query(logSql, [official_id, 'Reject Document', logDetails], (logErr) => {
-            if (logErr) console.error("Log error:", logErr);
-            res.json({ message: "Document successfully rejected." });
+        db.query(sql, [reason, requestId], (err, result) => {
+            if (err) return res.status(500).json({ error: "Database error" });
+
+            // 3. Log this specific action and the reason to the Audit Logs
+            const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
+            const logDetails = `Staff ${staffName} rejected ${docName} Request #${requestId} for Resident ${residentName}. Reason: ${reason}`;
+            
+            db.query(logSql, [official_id, 'Reject Document', logDetails], (logErr) => {
+                if (logErr) console.error("Log error:", logErr);
+                if (nameRes[0]?.email_address) { sendNotificationEmail(nameRes[0].email_address, 'Barangay Document Rejected', `Good day ${residentName}. We regret to inform you that your request for ${docName} has been rejected. Reason: ${reason}`); }
+                res.json({ message: "Document successfully rejected." });
+            });
+        });
+    });
+});
+
+// FEATURE 5: PUT - Mark a document as "No-Show" / Forfeited
+router.put('/no-show/:id', (req, res) => {
+    const requestId = req.params.id;
+    const { official_id } = req.body;
+
+    // 1. Fetch names for the log
+    const nameSql = `
+        SELECT res.first_name, res.last_name, doc.doc_name, off.full_name as staff_name
+        FROM Document_RequestTable req
+        JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
+        JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
+        LEFT JOIN Barangay_OfficialsTable off ON off.official_id = ?
+        WHERE req.request_id = ?
+    `;
+    db.query(nameSql, [official_id, requestId], (nameErr, nameRes) => {
+        if (nameErr) return res.status(500).json({ error: "Database error" });
+        const residentName = nameRes.length > 0 ? `${nameRes[0].first_name} ${nameRes[0].last_name}` : 'Unknown Resident';
+        const docName = nameRes.length > 0 ? nameRes[0].doc_name : 'Document';
+        const staffName = nameRes.length > 0 && nameRes[0].staff_name ? nameRes[0].staff_name : 'Staff';
+
+        // 2. Change the status to Cancelled and add a remark
+        const sql = `UPDATE Document_RequestTable SET status = 'Cancelled', remarks = 'Forfeited (No-Show)' WHERE request_id = ?`;
+        
+        db.query(sql, [requestId], (err, result) => {
+            if (err) return res.status(500).json({ error: "Database error" });
+
+            // 3. Log this specific action
+            const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
+            const logDetails = `Staff ${staffName} marked ${docName} Request #${requestId} as No-Show for Resident ${residentName}.`;
+            
+            db.query(logSql, [official_id, 'No-Show / Forfeiture', logDetails], (logErr) => {
+                if (logErr) console.error("Log error:", logErr);
+                if (nameRes[0]?.email_address) { sendNotificationEmail(nameRes[0].email_address, 'Barangay Document Forfeited', `Good day ${residentName}. You missed your appointment to claim your ${docName}. Your request has been officially forfeited.`); }
+                res.json({ message: "Document forfeited as No-Show." });
+            });
         });
     });
 });

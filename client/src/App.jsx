@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import ResidentDashboard from './pages/ResidentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ResidentApprovals from './pages/ResidentApprovals';
@@ -13,6 +15,7 @@ import PendingReview from './pages/PendingReview';
 import ReadyToPrint from './pages/ReadyToPrint';
 import DocumentManagement from './pages/DocumentManagement';
 import AuditLogs from './pages/AuditLogs';
+import SystemSettings from './pages/SystemSettings';
 import StaffHome from './pages/StaffHome';
 import StaffPendingReview from './pages/StaffPendingReview';
 import StaffReadyToPrint from './pages/StaffReadyToPrint';
@@ -23,6 +26,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/resident-dashboard" element={<ResidentDashboard />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/resident-approvals" element={<ResidentApprovals />} />
@@ -35,6 +40,7 @@ function App() {
         <Route path="/ready-to-print" element={<ReadyToPrint />} />
         <Route path="/document-management" element={<DocumentManagement />} />
         <Route path="/audit-logs" element={<AuditLogs />} />
+        <Route path="/system-settings" element={<SystemSettings />} />
         <Route path="/staff-home" element={<StaffHome />} />
         <Route path="/staff-pending" element={<StaffPendingReview />} />
         <Route path="/staff-ready" element={<StaffReadyToPrint />} />
