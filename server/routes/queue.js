@@ -20,7 +20,7 @@ router.get('/today', (req, res) => {
         FROM Queue_ManagementTable q
         JOIN Document_RequestTable req ON q.request_id = req.request_id
         JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
-        WHERE DATE(q.generated_at) = ?
+        WHERE DATE(req.pick_up_date) = ?
         ORDER BY q.daily_sequence_no ASC
     `;
 

@@ -164,6 +164,38 @@ router.put('/profile/update/:id', (req, res) => {
         res.json({ message: "Profile updated successfully!" });
     });
 });
+
+// --- NEW: Resident Change Password ---
+router.put('/profile/change-password/:id', async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const residentId = req.params.id;
+
+    // 1. Fetch current hashed password
+    const sql = `SELECT password_hash FROM Resident_ProfileTable WHERE resident_id = ?`;
+    db.query(sql, [residentId], async (err, results) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (results.length === 0) return res.status(404).json({ error: "User not found" });
+
+        const user = results[0];
+
+        // 2. Verify current password
+        const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!validPassword) return res.status(400).json({ error: "Incorrect current password." });
+
+        // 3. Hash and update new password
+        try {
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+            const updateSql = `UPDATE Resident_ProfileTable SET password_hash = ? WHERE resident_id = ?`;
+            db.query(updateSql, [hashedPassword, residentId], (updateErr) => {
+                if (updateErr) return res.status(500).json({ error: "Failed to update password" });
+                res.json({ message: "Password updated successfully!" });
+            });
+        } catch (hashError) {
+            res.status(500).json({ error: "Error encrypting new password." });
+        }
+    });
+});
+
 // --- NEW: Forgot Password (Residents Only) ---
 router.post('/forgot-password', (req, res) => {
     const { email } = req.body;

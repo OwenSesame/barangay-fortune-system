@@ -128,11 +128,17 @@ router.put('/accounts/archive', (req, res) => {
             res.json({ message: "Staff account deleted." });
         });
     } else {
-        // RESIDENT: Soft Delete (Archive) to preserve transaction history!
-        db.query(`UPDATE resident_profiletable SET account_status = 'Archived' WHERE resident_id = ?`, [id], (err) => {
-            if (err) return res.status(500).json({ error: "Database error." });
-            recordLog(adminId, "Account Archived", `Archived resident account (ID: ${id}) to preserve transaction history.`);
-            res.json({ message: "Resident account safely archived." });
+        // RESIDENT: Hard Delete
+        // First delete their document requests to prevent foreign key constraint errors
+        db.query(`DELETE FROM document_requesttable WHERE resident_id = ?`, [id], (err1) => {
+            if (err1) return res.status(500).json({ error: "Cannot delete resident's document requests." });
+            
+            // Then delete the resident profile
+            db.query(`DELETE FROM resident_profiletable WHERE resident_id = ?`, [id], (err) => {
+                if (err) return res.status(500).json({ error: "Database error." });
+                recordLog(adminId, "Account Deletion", `Permanently deleted resident account (ID: ${id}) and all associated records.`);
+                res.json({ message: "Resident account permanently deleted from database." });
+            });
         });
     }
 });

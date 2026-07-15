@@ -9,6 +9,12 @@ export default function Profile() {
     contact_number: '', addres_street: '', civil_status: ''
   });
 
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -38,6 +44,29 @@ export default function Profile() {
     }
   };
 
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      return alert("New passwords do not match!");
+    }
+    
+    try {
+      const myId = localStorage.getItem('userId');
+      const response = await axios.put(`http://localhost:5000/api/auth/profile/change-password/${myId}`, {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      });
+      alert(response.data.message || "Password updated successfully!");
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.error) {
+        alert(error.response.data.error);
+      } else {
+        alert("Failed to update password.");
+      }
+    }
+  };
+
   const handleLogout = () => {
     localStorage.clear();
     navigate('/');
@@ -58,8 +87,8 @@ export default function Profile() {
       </div>
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, padding: '40px', display: 'flex', justifyContent: 'center' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', width: '100%', maxWidth: '600px', height: 'fit-content' }}>
+      <div style={{ flex: 1, padding: '40px', display: 'flex', justifyContent: 'center', overflowY: 'auto' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', width: '100%', maxWidth: '600px', height: 'fit-content', marginBottom: '40px' }}>
           
           <h2 style={{ margin: '0 0 5px 0', color: '#1f2937' }}>Account Profile</h2>
           <p style={{ color: '#6b7280', marginBottom: '30px', fontSize: '14px' }}>Keep your contact information up to date so the Barangay can reach you.</p>
@@ -84,7 +113,7 @@ export default function Profile() {
           </div>
 
           {/* Editable Form */}
-          <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '8px', color: '#334155', fontWeight: '500', fontSize: '14px' }}>Contact Number</label>
               <input 
@@ -107,6 +136,47 @@ export default function Profile() {
 
             <button type="submit" style={{ width: '100%', padding: '14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
               💾 Save Updates
+            </button>
+          </form>
+
+          {/* Change Password Form */}
+          <h3 style={{ margin: '0 0 15px 0', color: '#1f2937', borderTop: '1px solid #e2e8f0', paddingTop: '30px' }}>Change Password</h3>
+          <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#334155', fontWeight: '500', fontSize: '14px' }}>Current Password</label>
+              <input 
+                type="password" 
+                value={passwordForm.currentPassword} 
+                onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})} 
+                required
+                style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '15px', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#334155', fontWeight: '500', fontSize: '14px' }}>New Password</label>
+              <input 
+                type="password" 
+                value={passwordForm.newPassword} 
+                onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})} 
+                required
+                style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '15px', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#334155', fontWeight: '500', fontSize: '14px' }}>Confirm New Password</label>
+              <input 
+                type="password" 
+                value={passwordForm.confirmPassword} 
+                onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})} 
+                required
+                style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '15px', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <button type="submit" style={{ width: '100%', padding: '14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
+              🔒 Update Password
             </button>
           </form>
 
