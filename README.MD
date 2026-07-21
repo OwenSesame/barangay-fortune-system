@@ -5,13 +5,15 @@ Tech Stack: React.js, Node.js, Express.js, MySQL.
 Features: Resident Portal, Staff Processing Queue, Admin Analytics Dashboard, Official Document Printing
 
 setup:
-server
-npm install express mysql2 cors bcrypt jsonwebtoken dotenv
+
+server:
+cd server
+npm install 
 node server.js
 
-client
+client:
+cd client
 npm install
-npm install react-router-dom axios
 npm run dev
 
 kung gusto makita ang luma na code
