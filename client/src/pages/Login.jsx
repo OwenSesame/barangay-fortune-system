@@ -7,10 +7,12 @@ export default function Login() {
   const [role, setRole] = useState('Resident');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError('');
     try {
       const response = await axios.post('http://localhost:5000/api/auth/login', { role, identifier, password });
       
@@ -36,8 +38,10 @@ export default function Login() {
       }
     } catch (err) {
       if (err.response && err.response.data && err.response.data.error) {
+        setError(err.response.data.error);
         toast.error(err.response.data.error);
       } else {
+        setError("Invalid credentials or server error");
         toast.error("Invalid credentials or server error");
       }
     }
@@ -51,6 +55,12 @@ export default function Login() {
           <h1 style={{ margin: '0', color: '#0f172a', fontSize: '26px', fontWeight: '800' }}>🏛️ Brgy. Fortune</h1>
           <p style={{ color: '#64748b', margin: '5px 0 0 0', fontSize: '14px', fontWeight: '500' }}>E-Services Portal</p>
         </div>
+
+        {error && (
+          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '12px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', marginBottom: '20px', borderLeft: '4px solid #ef4444' }}>
+            ⚠️ {error}
+          </div>
+        )}
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
