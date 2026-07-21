@@ -1,6 +1,8 @@
 import { sendNotificationEmail } from '../utils/mailer.js';
 import express from 'express';
 import db from '../db.js';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
@@ -123,18 +125,30 @@ router.get('/print-data/:id', (req, res) => {
     db.query(sql, [req.params.id], (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });
         if (results.length === 0) return res.status(404).json({ error: "Document not found" });
-        res.json(results[0]);
+        
+        const docData = results[0];
+        
+        // Fetch current Barangay Captain
+        db.query(`SELECT full_name FROM barangay_officialstable WHERE is_captain = 1 LIMIT 1`, (capErr, capRes) => {
+            if (!capErr && capRes.length > 0) {
+                docData.captain_name = capRes[0].full_name;
+            } else {
+                docData.captain_name = 'JUAN DELA CRUZ'; // Fallback
+            }
+            res.json(docData);
+        });
     });
 });
 
 // PUT: Reject a document and log the reason
+// PUT: Reject a document with a reason
 router.put('/reject/:id', (req, res) => {
-    const { official_id, reason } = req.body;
     const requestId = req.params.id;
+    const { reason, official_id } = req.body;
 
-    // 1. Fetch names for the log
+    // 1. Fetch names and requirement_file for the log and cleanup
     const nameSql = `
-        SELECT res.first_name, res.last_name, doc.doc_name, off.full_name as staff_name
+        SELECT res.first_name, res.last_name, res.email_address, doc.doc_name, off.full_name as staff_name, req.requirement_file
         FROM Document_RequestTable req
         JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
         JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
@@ -146,6 +160,7 @@ router.put('/reject/:id', (req, res) => {
         const residentName = nameRes.length > 0 ? `${nameRes[0].first_name} ${nameRes[0].last_name}` : 'Unknown Resident';
         const docName = nameRes.length > 0 ? nameRes[0].doc_name : 'Document';
         const staffName = nameRes.length > 0 && nameRes[0].staff_name ? nameRes[0].staff_name : 'Staff';
+        const requirementFile = nameRes.length > 0 ? nameRes[0].requirement_file : null;
 
         // 2. Change the status to Rejected
         const sql = `UPDATE Document_RequestTable SET status = 'Rejected', remarks = ? WHERE request_id = ?`;
@@ -153,14 +168,25 @@ router.put('/reject/:id', (req, res) => {
         db.query(sql, [reason, requestId], (err, result) => {
             if (err) return res.status(500).json({ error: "Database error" });
 
-            // 3. Log this specific action and the reason to the Audit Logs
+            // 3. Garbage Collection: Delete the physical file from the server
+            if (requirementFile) {
+                // Ensure we resolve from the server root
+                const filePath = path.join(process.cwd(), requirementFile);
+                fs.unlink(filePath, (unlinkErr) => {
+                    if (unlinkErr && unlinkErr.code !== 'ENOENT') {
+                        console.error(`Failed to delete file ${filePath}:`, unlinkErr);
+                    }
+                });
+            }
+
+            // 4. Log this specific action and the reason to the Audit Logs
             const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
             const logDetails = `Staff ${staffName} rejected ${docName} Request #${requestId} for Resident ${residentName}. Reason: ${reason}`;
             
             db.query(logSql, [official_id, 'Reject Document', logDetails], (logErr) => {
                 if (logErr) console.error("Log error:", logErr);
                 if (nameRes[0]?.email_address) { sendNotificationEmail(nameRes[0].email_address, 'Barangay Document Rejected', `Good day ${residentName}. We regret to inform you that your request for ${docName} has been rejected. Reason: ${reason}`); }
-                res.json({ message: "Document successfully rejected." });
+                res.json({ message: "Document successfully rejected and files cleaned." });
             });
         });
     });

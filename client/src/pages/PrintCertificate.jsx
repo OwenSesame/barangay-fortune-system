@@ -108,7 +108,9 @@ export default function PrintCertificate() {
         <div style={{ marginTop: '100px', display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{ textAlign: 'center', width: '300px' }}>
             <div style={{ borderBottom: '1px solid black', height: '40px' }}></div>
-            <p style={{ margin: '5px 0 0 0', fontWeight: 'bold', fontSize: '18px' }}>JUAN DELA CRUZ</p>
+            <p style={{ margin: '5px 0 0 0', fontWeight: 'bold', fontSize: '18px' }}>
+              {docData.captain_name ? docData.captain_name.toUpperCase() : 'JUAN DELA CRUZ'}
+            </p>
             <p style={{ margin: 0, fontSize: '14px' }}>Punong Barangay</p>
           </div>
         </div>

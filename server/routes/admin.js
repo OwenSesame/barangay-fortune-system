@@ -1,6 +1,9 @@
 import express from 'express';
 import db from '../db.js';
 import bcrypt from 'bcrypt';
+import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
 import transporter from '../utils/mailer.js';
 
 const router = express.Router();
@@ -63,7 +66,9 @@ router.get('/accounts', (req, res) => {
             '' as contact_number, 
             '' as email_address, 
             role, 
-            'official' as account_type 
+            'official' as account_type,
+            account_status,
+            is_captain
         FROM barangay_officialstable
         UNION
         SELECT 
@@ -75,7 +80,9 @@ router.get('/accounts', (req, res) => {
             contact_number, 
             email_address, 
             'Resident' as role, 
-            'resident' as account_type 
+            'resident' as account_type,
+            account_status,
+            0 as is_captain
         FROM resident_profiletable
         WHERE account_status != 'Archived'
         ORDER BY role ASC, name ASC
@@ -154,8 +161,8 @@ router.get('/document-templates', (req, res) => {
 
 // POST a new document type
 router.post('/document-templates', (req, res) => {
-    const { doc_name, base_fee } = req.body;
-    db.query("INSERT INTO Document_TemplateTable (doc_name, base_fee, available) VALUES (?, ?, 1)", [doc_name, base_fee], (err) => {
+    const { doc_name, base_fee, requires_attachment } = req.body;
+    db.query("INSERT INTO Document_TemplateTable (doc_name, base_fee, available, requires_attachment) VALUES (?, ?, 1, ?)", [doc_name, base_fee, requires_attachment || 0], (err) => {
         if (err) return res.status(500).json({ error: "Database error" });
         res.json({ message: "New Document Template Created!" });
     });
@@ -167,6 +174,15 @@ router.put('/document-templates/:id/toggle', (req, res) => {
     db.query("UPDATE Document_TemplateTable SET available = ? WHERE doc_type_id = ?", [available, req.params.id], (err) => {
         if (err) return res.status(500).json({ error: "Database error" });
         res.json({ message: "Document status updated!" });
+    });
+});
+
+// PUT (Toggle attachment requirement on or off)
+router.put('/document-templates/:id/toggle-attachment', (req, res) => {
+    const { requires_attachment } = req.body;
+    db.query("UPDATE Document_TemplateTable SET requires_attachment = ? WHERE doc_type_id = ?", [requires_attachment, req.params.id], (err) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        res.json({ message: "Attachment requirement updated!" });
     });
 });
 
@@ -186,11 +202,11 @@ router.get('/staff-list', (req, res) => {
 
 // POST: Create New Staff (with hashed password)
 router.post('/create-staff', async (req, res) => {
-    const { full_name, username, password } = req.body;
+    const { full_name, username, password, email_address } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        const sql = "INSERT INTO barangay_officialstable (full_name, username, password_hash, role, can_review, account_status) VALUES (?, ?, ?, 'Staff', 1, 'Active')";
-        db.query(sql, [full_name, username, hashedPassword], (err) => {
+        const sql = "INSERT INTO barangay_officialstable (full_name, username, password_hash, role, can_review, account_status, email_address) VALUES (?, ?, ?, 'Staff', 1, 'Active', ?)";
+        db.query(sql, [full_name, username, hashedPassword, email_address || null], (err) => {
             if (err) return res.status(500).json({ error: "Database error or username taken." });
             res.json({ message: "Staff account created!" });
         });
@@ -214,6 +230,44 @@ router.put('/staff/:id/toggle-access', (req, res) => {
         recordLog(adminId, "Privilege Change", `Pending Review access ${accessStatus} for Staff ID: ${staffId}`);
         
         res.json({ message: `Access ${accessStatus} successfully.` });
+    });
+});
+
+// PUT: Toggle Staff Account Status (Active/Suspended)
+router.put('/staff/:id/toggle-status', (req, res) => {
+    const { status } = req.body;
+    const staffId = req.params.id;
+    const adminId = 5; 
+
+    const sql = "UPDATE barangay_officialstable SET account_status = ? WHERE official_id = ?";
+    db.query(sql, [status, staffId], (err) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+
+        // LOG THE ACTION
+        recordLog(adminId, "Account Management", `Changed account status to ${status} for Staff ID: ${staffId}`);
+        
+        res.json({ message: `Account status updated to ${status}.` });
+    });
+});
+
+// PUT: Set Staff as Captain
+router.put('/staff/:id/toggle-captain', (req, res) => {
+    const staffId = req.params.id;
+    const adminId = 5; 
+
+    // 1. Reset everyone to NOT captain
+    db.query("UPDATE barangay_officialstable SET is_captain = 0", (err) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+
+        // 2. Set the chosen staff as captain
+        db.query("UPDATE barangay_officialstable SET is_captain = 1 WHERE official_id = ?", [staffId], (err2) => {
+            if (err2) return res.status(500).json({ error: "Database error" });
+
+            // LOG THE ACTION
+            recordLog(adminId, "Captain Change", `Assigned Staff ID: ${staffId} as the new Barangay Captain.`);
+            
+            res.json({ message: `Staff successfully assigned as Barangay Captain.` });
+        });
     });
 });
 
@@ -281,8 +335,24 @@ router.put('/reject-resident/:id', (req, res) => {
     const { reason } = req.body;
     const adminId = 5; 
 
-    db.query("UPDATE resident_profiletable SET account_status = 'Rejected' WHERE resident_id = ?", [residentId], (err, updateRes) => {
-        if (err) return res.status(500).json({ error: "Database error" });
+    // 1. Fetch email and ID image
+    db.query("SELECT email_address, first_name, id_proof_image FROM resident_profiletable WHERE resident_id = ?", [residentId], (err2, results) => {
+        if (err2 || results.length === 0) return res.status(500).json({ error: "Resident not found" });
+        const user = results[0];
+        
+        // 2. Update status to Rejected
+        db.query("UPDATE resident_profiletable SET account_status = 'Rejected' WHERE resident_id = ?", [residentId], (err, updateRes) => {
+            if (err) return res.status(500).json({ error: "Database error" });
+
+            // 3. Garbage Collection: Delete ID proof image from server
+            if (user.id_proof_image) {
+                const filePath = path.join(process.cwd(), user.id_proof_image);
+                fs.unlink(filePath, (unlinkErr) => {
+                    if (unlinkErr && unlinkErr.code !== 'ENOENT') {
+                        console.error(`Failed to delete file ${filePath}:`, unlinkErr);
+                    }
+                });
+            }
 
         recordLog(adminId, "Account Rejection", `Rejected resident registration for ID: ${residentId}. Reason: ${reason}`);
         
@@ -301,6 +371,7 @@ router.put('/reject-resident/:id', (req, res) => {
         });
 
         res.json({ message: "Resident rejected successfully." });
+        });
     });
 });
 

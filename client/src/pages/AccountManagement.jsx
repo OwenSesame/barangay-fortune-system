@@ -13,7 +13,7 @@ export default function AccountManagement() {
   const [badgeCounts, setBadgeCounts] = useState({ pending: 0, ready: 0, residentApprovals: 0 });
   
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
-  const [newStaff, setNewStaff] = useState({ full_name: '', username: '', password: '' });
+  const [newStaff, setNewStaff] = useState({ full_name: '', username: '', password: '', email_address: '' });
   
   // UPDATED: Edit Modal state now holds all specific profile fields
   const [editModal, setEditModal] = useState({ 
@@ -74,7 +74,7 @@ export default function AccountManagement() {
     try {
       await axios.post('http://localhost:5000/api/admin/create-staff', newStaff);
       setIsAddStaffOpen(false);
-      setNewStaff({ full_name: '', username: '', password: '' });
+      setNewStaff({ full_name: '', username: '', password: '', email_address: '' });
       fetchData();
       toast.success("New Staff Account Successfully Created!");
     } catch (error) { toast.error("Error creating staff account. Username might be taken."); }
@@ -105,6 +105,26 @@ export default function AccountManagement() {
       await axios.put(`http://localhost:5000/api/admin/staff/${staffId}/toggle-access`, { can_review: newAccess });
       fetchData();
     } catch (error) { toast.error("Error updating permissions."); }
+  };
+
+  const handleToggleStaffStatus = async (staffId, currentStatus) => {
+    try {
+      const newStatus = currentStatus === 'Active' ? 'Suspended' : 'Active'; 
+      if (newStatus === 'Suspended' && !window.confirm("Are you sure you want to suspend this staff account? They will not be able to log in.")) return;
+      await axios.put(`http://localhost:5000/api/admin/staff/${staffId}/toggle-status`, { status: newStatus });
+      fetchData();
+      toast.success(`Staff account marked as ${newStatus}.`);
+    } catch (error) { toast.error("Error updating account status."); }
+  };
+
+  const handleToggleCaptain = async (staffId, isCaptain) => {
+    if (isCaptain) return; // Cannot toggle off captain status this way, must assign another
+    if (!window.confirm("Are you sure you want to assign this staff member as the new Barangay Captain? This will replace the current captain.")) return;
+    try {
+      await axios.put(`http://localhost:5000/api/admin/staff/${staffId}/toggle-captain`);
+      fetchData();
+      toast.success("Barangay Captain updated successfully!");
+    } catch (error) { toast.error("Error updating Barangay Captain."); }
   };
 
   const handleDeleteAccount = async (id, type) => {
@@ -161,6 +181,10 @@ export default function AccountManagement() {
           .btn-edit:hover { background: #e0f2fe; border-color: #7dd3fc; }
           .btn-delete { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
           .btn-delete:hover { background: #fee2e2; border-color: #fca5a5; }
+          .btn-action.btn-suspend { background: #fee2e2; color: #991b1b; }
+          .btn-action.btn-suspend:hover { background: #fca5a5; }
+          .btn-action.btn-captain { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+          .btn-action.btn-captain:hover { background: #fef08a; }
         `}
       </style>
 
@@ -203,7 +227,11 @@ export default function AccountManagement() {
                     <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '15px' }}>{staff.name}</div>
                     <div style={{ color: '#64748b', fontSize: '13px', marginTop: '4px' }}>@{staff.username}</div>
                     </td>
-                    <td><span style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #cbd5e1' }}>Front Desk Staff</span></td>
+                    <td>
+                      <span style={{ padding: '6px 12px', background: staff.is_captain === 1 ? '#fef9c3' : '#f1f5f9', color: staff.is_captain === 1 ? '#854d0e' : '#475569', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', border: `1px solid ${staff.is_captain === 1 ? '#fde047' : '#cbd5e1'}` }}>
+                        {staff.is_captain === 1 ? '👑 Brgy. Captain' : 'Front Desk Staff'}
+                      </span>
+                    </td>
                     <td>
                       <button onClick={() => handleToggleAccess(staff.id, staff.can_review)} style={{ padding: '8px 16px', borderRadius: '30px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', transition: 'all 0.2s', background: staff.can_review === 1 ? '#dcfce7' : '#f1f5f9', color: staff.can_review === 1 ? '#166534' : '#64748b' }}>
                         {staff.can_review === 1 ? '🟢 Access Granted' : '🔒 Access Revoked'}
@@ -211,6 +239,21 @@ export default function AccountManagement() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {staff.is_captain === 0 && (
+                          <button 
+                            onClick={() => handleToggleCaptain(staff.id, staff.is_captain)} 
+                            className="btn-action btn-captain"
+                          >
+                            Make Captain
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleToggleStaffStatus(staff.id, staff.account_status)} 
+                          className={`btn-action ${staff.account_status === 'Active' ? 'btn-suspend' : 'btn-edit'}`}
+                          style={staff.account_status !== 'Active' ? { background: '#10b981', color: 'white' } : {}}
+                        >
+                          {staff.account_status === 'Active' ? 'Suspend' : 'Activate'}
+                        </button>
                         <button onClick={() => openEditModal(staff)} className="btn-action btn-edit">Edit</button>
                         <button onClick={() => handleDeleteAccount(staff.id, 'official')} className="btn-action btn-delete">Delete</button>
                       </div>
@@ -256,6 +299,10 @@ export default function AccountManagement() {
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Password</label>
                 <input type="password" value={newStaff.password} onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box', background: '#f8fafc', outline: 'none' }} required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>Email Address (for password reset)</label>
+                <input type="email" value={newStaff.email_address} onChange={(e) => setNewStaff({ ...newStaff, email_address: e.target.value })} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box', background: '#f8fafc', outline: 'none' }} />
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
                 <button type="button" onClick={() => setIsAddStaffOpen(false)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>

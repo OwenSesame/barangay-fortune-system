@@ -157,6 +157,11 @@ router.post('/login', loginLimiter, async (req, res) => {
             if (user.account_status === 'Rejected') {
                 return res.status(403).json({ error: "Registration rejected. Please visit the Barangay Hall or try registering again." });
             }
+        } else {
+            // Staff / Admin check
+            if (user.account_status === 'Suspended') {
+                return res.status(403).json({ error: "Account suspended. Please contact the administrator." });
+            }
         }
 
         // 4. Verify Password
@@ -236,16 +241,28 @@ router.put('/profile/change-password/:id', async (req, res) => {
     });
 });
 
-// --- NEW: Forgot Password (Residents Only) ---
+// --- NEW: Forgot Password (Residents and Staff) ---
 router.post('/forgot-password', (req, res) => {
     const { email } = req.body;
     
     // 1. Check if resident exists
-    db.query(`SELECT * FROM Resident_ProfileTable WHERE email_address = ?`, [email], (err, results) => {
+    db.query(`SELECT first_name FROM Resident_ProfileTable WHERE email_address = ?`, [email], (err, resResults) => {
         if (err) return res.status(500).json({ error: "Database error" });
-        if (results.length === 0) return res.status(404).json({ error: "No resident found with this email" });
         
-        const resident = results[0];
+        let userName = null;
+        if (resResults.length > 0) {
+            userName = resResults[0].first_name;
+            processReset(userName);
+        } else {
+            // Check Staff Table
+            db.query(`SELECT full_name FROM barangay_officialstable WHERE email_address = ?`, [email], (err2, offResults) => {
+                if (err2 || offResults.length === 0) return res.status(404).json({ error: "No account found with this email" });
+                userName = offResults[0].full_name;
+                processReset(userName);
+            });
+        }
+        
+        function processReset(firstName) {
         
         // 2. Generate secure token
         const resetToken = crypto.randomBytes(32).toString('hex');
@@ -275,7 +292,7 @@ router.post('/forgot-password', (req, res) => {
                 html: `
                     <div style="font-family: sans-serif; padding: 20px;">
                         <h2 style="color: #0f172a;">Password Reset Request</h2>
-                        <p>Hi ${resident.first_name},</p>
+                        <p>Hi ${firstName},</p>
                         <p>We received a request to reset the password for your E-Serbisyo Portal account.</p>
                         <p>Click the secure link below to reset your password. This link will expire in 1 hour.</p>
                         <br>
@@ -291,11 +308,12 @@ router.post('/forgot-password', (req, res) => {
                 
                 // 6. Audit Log (System User = 0)
                 const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
-                db.query(logSql, [0, 'Password Reset Requested', `Resident ${resident.first_name} ${resident.last_name} (${email}) requested a password reset.`], () => {
+                db.query(logSql, [0, 'Password Reset Requested', `User ${firstName} (${email}) requested a password reset.`], () => {
                     res.json({ message: "Reset link sent to your email." });
                 });
             });
         });
+        }
     });
 });
 
@@ -320,17 +338,21 @@ router.post('/reset-password', (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
         
-        // 4. Update the resident's password
+        // 4. Update the password in both tables (only the one with the email will be affected)
         db.query(`UPDATE Resident_ProfileTable SET password_hash = ? WHERE email_address = ?`, [hashedPassword, email], (updateErr) => {
             if (updateErr) return res.status(500).json({ error: "Failed to update password" });
             
-            // 5. Mark token as used
-            db.query(`UPDATE password_resettable SET is_used = 1 WHERE Reset_id = ?`, [resetRecord.Reset_id], () => {
+            db.query(`UPDATE barangay_officialstable SET password_hash = ? WHERE email_address = ?`, [hashedPassword, email], (updateErr2) => {
+                if (updateErr2) return res.status(500).json({ error: "Failed to update staff password" });
                 
-                // 6. Audit Log
-                const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
-                db.query(logSql, [0, 'Password Successfully Reset', `Resident (${email}) successfully changed their password using a secure token.`], () => {
-                    res.json({ message: "Password updated successfully!" });
+                // 5. Mark token as used
+                db.query(`UPDATE password_resettable SET is_used = 1 WHERE Reset_id = ?`, [resetRecord.Reset_id], () => {
+                    
+                    // 6. Audit Log
+                    const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
+                    db.query(logSql, [0, 'Password Successfully Reset', `User (${email}) successfully changed their password using a secure token.`], () => {
+                        res.json({ message: "Password updated successfully!" });
+                    });
                 });
             });
         });

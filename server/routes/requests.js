@@ -2,6 +2,7 @@ import express from 'express';
 import db from '../db.js'; // Adjust path if your db connection is elsewhere
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
 
@@ -244,24 +245,39 @@ router.get('/history/:residentId', (req, res) => {
 
 // PUT: Cancel a pending request
 router.put('/cancel/:id', (req, res) => {
-    // We use TRIM() just in case there are invisible spaces saving in your database
-    const sql = `UPDATE Document_RequestTable SET status = 'Cancelled' WHERE request_id = ? AND TRIM(status) = 'Pending'`;
-    
-    db.query(sql, [req.params.id], (err, result) => {
-        if (err) return res.status(500).json({ error: "Database error" });
-        
-        // NEW: Check if the database actually changed a row!
-        if (result.affectedRows === 0) {
-            return res.status(400).json({ error: "Could not cancel. It may have already been processed by staff." });
-        }
+    // 1. Fetch the requirement_file first
+    db.query(`SELECT requirement_file FROM Document_RequestTable WHERE request_id = ?`, [req.params.id], (fetchErr, fetchRes) => {
+        if (fetchErr) return res.status(500).json({ error: "Database error" });
+        const requirementFile = fetchRes.length > 0 ? fetchRes[0].requirement_file : null;
 
-        res.json({ message: "Request cancelled successfully" });
+        // We use TRIM() just in case there are invisible spaces saving in your database
+        const sql = `UPDATE Document_RequestTable SET status = 'Cancelled' WHERE request_id = ? AND TRIM(status) = 'Pending'`;
+        
+        db.query(sql, [req.params.id], (err, result) => {
+            if (err) return res.status(500).json({ error: "Database error" });
+            
+            // Check if the database actually changed a row!
+            if (result.affectedRows === 0) {
+                return res.status(400).json({ error: "Could not cancel. It may have already been processed by staff." });
+            }
+
+            // 3. Garbage Collection: Delete the physical file from the server
+            if (requirementFile) {
+                const filePath = path.join(process.cwd(), requirementFile);
+                fs.unlink(filePath, (unlinkErr) => {
+                    if (unlinkErr && unlinkErr.code !== 'ENOENT') {
+                        console.error(`Failed to delete file ${filePath}:`, unlinkErr);
+                    }
+                });
+            }
+
+            res.json({ message: "Request cancelled successfully" });
+        });
     });
 });
 // GET: Fetch all available document types for the dropdown
 router.get('/documents', (req, res) => {
-    // FIXED: Added base_fee and available to the query!
-    const sql = `SELECT doc_type_id, doc_name, base_fee, available FROM Document_TemplateTable WHERE available = 1`;
+    const sql = `SELECT doc_type_id, doc_name, base_fee, available, requires_attachment FROM Document_TemplateTable WHERE available = 1`;
     
     db.query(sql, (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });

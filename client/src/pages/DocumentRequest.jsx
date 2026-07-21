@@ -41,7 +41,12 @@ export default function DocumentRequest() {
     e.preventDefault();
     if (!docType) return toast.error("Please select a document type.");
     if (!scheduledDate) return toast.error("Please select an appointment date.");
-    if (!requirementFile) return toast.error("Please upload the required document/ID.");
+    
+    // Find the selected document object
+    const selectedDocObj = availableDocs.find(d => d.doc_type_id === parseInt(docType, 10) || d.doc_type_id === docType);
+    const requiresAttachment = selectedDocObj ? selectedDocObj.requires_attachment === 1 : false;
+
+    if (requiresAttachment && !requirementFile) return toast.error("Please upload the required document/ID.");
 
     const myId = localStorage.getItem('userId');
     
@@ -144,20 +149,28 @@ export default function DocumentRequest() {
               />
             </div>
 
-            {/* File Upload for Requirements */}
-            <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: '#1e3a8a', fontWeight: '500' }}>Upload Requirement (Valid ID, Cedula, etc.)</label>
-              <input 
-                type="file" 
-                accept="image/*,.pdf" 
-                onChange={(e) => setRequirementFile(e.target.files[0])} 
-                required 
-                style={{ width: '100%', fontSize: '14px' }}
-              />
-              <p style={{ fontSize: '12px', color: '#64748b', marginTop: '10px', marginBottom: 0 }}>
-                Please provide a clear picture or PDF of the specific requirement needed for this document.
-              </p>
-            </div>
+            {/* Conditionally Render File Upload for Requirements */}
+            {(() => {
+              const selectedDocObj = availableDocs.find(d => d.doc_type_id === parseInt(docType, 10) || d.doc_type_id === docType);
+              if (selectedDocObj && selectedDocObj.requires_attachment === 1) {
+                return (
+                  <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#1e3a8a', fontWeight: '500' }}>Upload Requirement (Valid ID, Cedula, etc.)</label>
+                    <input 
+                      type="file" 
+                      accept="image/*,.pdf" 
+                      onChange={(e) => setRequirementFile(e.target.files[0])} 
+                      required 
+                      style={{ width: '100%', fontSize: '14px' }}
+                    />
+                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '10px', marginBottom: 0 }}>
+                      Please provide a clear picture or PDF of the specific requirement needed for this document.
+                    </p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             <button type="submit" style={{ width: '100%', padding: '14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', marginTop: '10px' }}>
               Submit Application

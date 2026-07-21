@@ -8,7 +8,7 @@ export default function DocumentManagement() {
   const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newDoc, setNewDoc] = useState({ doc_name: '', base_fee: '' });
+  const [newDoc, setNewDoc] = useState({ doc_name: '', base_fee: '', requires_attachment: 0 });
   
   // Persistent Notification State
   const [badgeCounts, setBadgeCounts] = useState({ pending: 0, ready: 0, residentApprovals: 0 });
@@ -52,7 +52,7 @@ export default function DocumentManagement() {
       await axios.post('http://localhost:5000/api/admin/document-templates', newDoc);
       toast.success("New Document Successfully Added!");
       setIsModalOpen(false);
-      setNewDoc({ doc_name: '', base_fee: '' });
+      setNewDoc({ doc_name: '', base_fee: '', requires_attachment: 0 });
       fetchDocuments();
     } catch (error) {
       toast.error("Error adding document.");
@@ -66,6 +66,16 @@ export default function DocumentManagement() {
       fetchDocuments();
     } catch (error) {
       toast.error("Error updating document status.");
+    }
+  };
+
+  const handleToggleAttachment = async (id, currentStatus) => {
+    try {
+      const newStatus = currentStatus === 1 ? 0 : 1;
+      await axios.put(`http://localhost:5000/api/admin/document-templates/${id}/toggle-attachment`, { requires_attachment: newStatus });
+      fetchDocuments();
+    } catch (error) {
+      toast.error("Error updating document attachment requirement.");
     }
   };
 
@@ -112,6 +122,7 @@ export default function DocumentManagement() {
                 <th style={{ padding: '15px 25px' }}>ID</th>
                 <th style={{ padding: '15px 25px' }}>Document Name</th>
                 <th style={{ padding: '15px 25px' }}>Base Fee</th>
+                <th style={{ padding: '15px 25px' }}>Attachment Req.</th>
                 <th style={{ padding: '15px 25px' }}>Status</th>
                 <th style={{ padding: '15px 25px' }}>Action</th>
               </tr>
@@ -122,6 +133,11 @@ export default function DocumentManagement() {
                   <td style={{ padding: '15px 25px', color: '#64748b', fontWeight: 'bold' }}>{doc.doc_type_id}</td>
                   <td style={{ padding: '15px 25px', color: '#0f172a', fontWeight: '500' }}>{doc.doc_name}</td>
                   <td style={{ padding: '15px 25px', color: '#16a34a', fontWeight: 'bold' }}>₱{doc.base_fee}</td>
+                  <td style={{ padding: '15px 25px' }}>
+                    <button onClick={() => handleToggleAttachment(doc.doc_type_id, doc.requires_attachment)} style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', border: 'none', cursor: 'pointer', background: doc.requires_attachment === 1 ? '#dbeafe' : '#f1f5f9', color: doc.requires_attachment === 1 ? '#1d4ed8' : '#64748b' }}>
+                      {doc.requires_attachment === 1 ? 'Required' : 'Not Required'}
+                    </button>
+                  </td>
                   <td style={{ padding: '15px 25px' }}>
                     <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', background: doc.available === 1 ? '#dcfce7' : '#fee2e2', color: doc.available === 1 ? '#166534' : '#991b1b' }}>
                       {doc.available === 1 ? 'Active / Visible' : 'Hidden'}
@@ -149,8 +165,12 @@ export default function DocumentManagement() {
                 <input type="text" value={newDoc.doc_name} onChange={(e) => setNewDoc({ ...newDoc, doc_name: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', color: '#475569', fontWeight: 'bold' }}>Base Fee (₱)</label>
-                <input type="number" value={newDoc.base_fee} onChange={(e) => setNewDoc({ ...newDoc, base_fee: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: '#334155', fontWeight: '600' }}>Base Fee (₱)</label>
+                <input type="number" value={newDoc.base_fee} onChange={(e) => setNewDoc({ ...newDoc, base_fee: e.target.value })} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required min="0" />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input type="checkbox" id="requires_attachment" checked={newDoc.requires_attachment === 1} onChange={(e) => setNewDoc({ ...newDoc, requires_attachment: e.target.checked ? 1 : 0 })} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
+                <label htmlFor="requires_attachment" style={{ fontSize: '14px', color: '#334155', fontWeight: '600', cursor: 'pointer' }}>Requires Attachment (e.g., ID, Proof of Income)</label>
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{ flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Save Document</button>
