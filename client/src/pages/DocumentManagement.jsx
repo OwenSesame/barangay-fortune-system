@@ -2,6 +2,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 export default function DocumentManagement() {
   const navigate = useNavigate();
@@ -49,12 +50,12 @@ export default function DocumentManagement() {
     e.preventDefault();
     try {
       await axios.post('http://localhost:5000/api/admin/document-templates', newDoc);
-      alert("New Document Successfully Added!");
+      toast.success("New Document Successfully Added!");
       setIsModalOpen(false);
       setNewDoc({ doc_name: '', base_fee: '' });
       fetchDocuments();
     } catch (error) {
-      alert("Error adding document.");
+      toast.error("Error adding document.");
     }
   };
 
@@ -64,7 +65,7 @@ export default function DocumentManagement() {
       await axios.put(`http://localhost:5000/api/admin/document-templates/${id}/toggle`, { available: newStatus });
       fetchDocuments();
     } catch (error) {
-      alert("Error updating document status.");
+      toast.error("Error updating document status.");
     }
   };
 

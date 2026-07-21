@@ -2,6 +2,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 export default function PendingReview() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export default function PendingReview() {
             axios.get('http://localhost:5000/api/admin/pending-residents')
         ]);
         const pending = requestsRes.data.filter(req => req.status === 'Pending').length;
-        const ready = requestsRes.data.filter(req => req.status === 'Ready to Print').length;
+        const ready = requestsRes.data.filter(req => req.status === 'Waiting for Printing' || req.status === 'Ready for Pickup').length;
         const residentApprovals = residentsRes.data.length;
         setBadgeCounts({ pending, ready, residentApprovals });
       } catch (error) {
@@ -56,12 +57,13 @@ export default function PendingReview() {
     try {
       const adminId = localStorage.getItem('userId');
       await axios.put(`http://localhost:5000/api/staff/update-status/${requestId}`, {
-        status: 'Ready to Print',
+        status: 'Waiting for Printing',
         official_id: adminId
       });
-      fetchPendingRequests(); 
+      fetchPendingRequests();
+      toast.success("Request approved successfully.");
     } catch (error) {
-      alert("Error approving request.");
+      toast.error("Error approving request.");
     }
   };
 
@@ -76,8 +78,9 @@ export default function PendingReview() {
         reason: reason
       });
       fetchPendingRequests();
+      toast.success("Request denied.");
     } catch (error) {
-      alert("Error denying request.");
+      toast.error("Error denying request.");
     }
   };
 

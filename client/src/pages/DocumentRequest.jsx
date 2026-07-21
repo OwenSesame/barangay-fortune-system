@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import ResidentBottomNav from '../components/ResidentBottomNav';
 
 export default function DocumentRequest() {
   const navigate = useNavigate();
@@ -37,9 +39,9 @@ export default function DocumentRequest() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!docType) return alert("Please select a document type.");
-    if (!scheduledDate) return alert("Please select an appointment date.");
-    if (!requirementFile) return alert("Please upload the required document/ID.");
+    if (!docType) return toast.error("Please select a document type.");
+    if (!scheduledDate) return toast.error("Please select an appointment date.");
+    if (!requirementFile) return toast.error("Please upload the required document/ID.");
 
     const myId = localStorage.getItem('userId');
     
@@ -56,11 +58,11 @@ export default function DocumentRequest() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      alert(`Success! Your Queue Number is: ${response.data.queue_number}`);
+      toast.success(`Success! Your Queue Number is: ${response.data.queue_number}`);
       navigate('/resident-dashboard');
       
     } catch (error) {
-      alert("Error submitting application. Please try again.");
+      toast.error("Error submitting application. Please try again.");
     }
   };
 
@@ -70,22 +72,22 @@ export default function DocumentRequest() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#f4f7f6' }}>
+    <div className="flex flex-col md:flex-row min-h-screen bg-[#f4f7f6] font-sans pb-[65px] md:pb-0">
       
       {/* Sidebar */}
-      <div style={{ width: '260px', background: '#1e3a8a', color: 'white', padding: '30px 20px', display: 'flex', flexDirection: 'column' }}>
+      <div className="hidden md:flex flex-col w-[260px] bg-[#1e3a8a] text-white p-[30px_20px] sticky top-0 h-screen overflow-y-auto">
         <h2 style={{ fontSize: '20px', margin: '0 0 40px 0', borderBottom: '1px solid #3b82f6', paddingBottom: '15px' }}>🏛️ Brgy. Fortune</h2>
         <div style={{ flex: 1 }}>
-          <p onClick={() => navigate('/resident-dashboard')} style={{ margin: '15px 0', cursor: 'pointer', color: '#93c5fd' }}>📄 My Dashboard</p>
-          <p style={{ margin: '15px 0', cursor: 'pointer', fontWeight: 'bold' }}>➕ Request Document</p>
-          <p onClick={() => navigate('/profile')} style={{ margin: '15px 0', cursor: 'pointer', color: '#93c5fd' }}>👤 Profile Settings</p>
+          <p onClick={() => navigate('/resident-dashboard')} className="transition-all duration-300 hover:translate-x-2 hover:bg-[#2563eb] hover:text-white" style={{ padding: '8px 16px', borderRadius: '8px', margin: '15px 0', cursor: 'pointer', color: '#93c5fd' }}>📄 My Dashboard</p>
+          <p className="transition-all duration-300 hover:translate-x-2 hover:bg-[#2563eb] hover:text-white" style={{ padding: '8px 16px', borderRadius: '8px', margin: '15px 0', cursor: 'pointer', fontWeight: 'bold' }}>➕ Request Document</p>
+          <p onClick={() => navigate('/profile')} className="transition-all duration-300 hover:translate-x-2 hover:bg-[#2563eb] hover:text-white" style={{ padding: '8px 16px', borderRadius: '8px', margin: '15px 0', cursor: 'pointer', color: '#93c5fd' }}>👤 Profile Settings</p>
         </div>
-        <button onClick={handleLogout} style={{ padding: '10px', background: 'transparent', color: '#fca5a5', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer' }}>Logout</button>
+        <button onClick={handleLogout} className="transition-all duration-300 bg-transparent text-[#fca5a5] hover:bg-[#ef4444] hover:text-white hover:border-[#ef4444]" style={{ padding: '10px', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
       </div>
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, padding: '40px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', width: '100%', maxWidth: '600px', marginTop: '20px' }}>
+      <div className="flex-1 p-5 md:p-[40px] flex justify-center items-start w-full overflow-x-hidden">
+        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', w: '100%', maxWidth: '600px', marginTop: '20px' }}>
           
           <h2 style={{ margin: '0 0 10px 0', color: '#1f2937' }}>New Document Application</h2>
           <p style={{ color: '#6b7280', marginBottom: '30px', fontSize: '14px' }}>Fill out the details below and attach the necessary requirements.</p>
@@ -164,6 +166,9 @@ export default function DocumentRequest() {
 
         </div>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <ResidentBottomNav />
     </div>
   );
 }

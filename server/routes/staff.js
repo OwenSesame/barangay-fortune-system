@@ -10,12 +10,12 @@ router.get('/pending-requests', (req, res) => {
     const sql = `
         SELECT req.request_id, req.status, req.date_requested, req.purpose, req.requirement_file,
                res.first_name, res.last_name, res.id_proof_image, 
-               doc.doc_name, q.daily_sequence_no
+               doc.doc_name, doc.base_fee, q.daily_sequence_no
         FROM Document_RequestTable req
         JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
         JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
         LEFT JOIN Queue_ManagementTable q ON req.request_id = q.request_id
-        WHERE req.status IN ('Pending', 'Ready to Print')
+        WHERE req.status IN ('Pending', 'Waiting for Printing', 'Ready for Pickup')
         ORDER BY req.date_requested ASC
     `;
     db.query(sql, (err, results) => {
@@ -42,7 +42,7 @@ router.get('/print-details/:id', (req, res) => {
 
 // PUT: Update request status AND record it in the Audit Log
 router.put('/update-status/:id', (req, res) => {
-    const { status, official_id } = req.body;
+    const { status, official_id, orNumber } = req.body;
     const requestId = req.params.id;
 
     // 1. Fetch names for the log
@@ -61,9 +61,15 @@ router.put('/update-status/:id', (req, res) => {
         const staffName = nameRes.length > 0 && nameRes[0].staff_name ? nameRes[0].staff_name : 'Staff';
 
         // 2. Update the document's status
-        const sql = `UPDATE Document_RequestTable SET status = ? WHERE request_id = ?`;
+        let sql = `UPDATE Document_RequestTable SET status = ?, processed_by = ? WHERE request_id = ?`;
+        let params = [status, official_id, requestId];
+
+        if (status === 'Released' && orNumber) {
+            sql = `UPDATE Document_RequestTable SET status = ?, processed_by = ?, or_number = ? WHERE request_id = ?`;
+            params = [status, official_id, orNumber, requestId];
+        }
         
-        db.query(sql, [status, requestId], (err, result) => {
+        db.query(sql, params, (err, result) => {
             if (err) {
                 console.error(err);
                 return res.status(500).json({ error: "Database error" });
@@ -71,11 +77,32 @@ router.put('/update-status/:id', (req, res) => {
 
             // 3. Save this action to the Admin Audit Logs!
             const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
-            const logDetails = `Staff ${staffName} updated ${docName} Request #${requestId} for Resident ${residentName} to status: ${status}`;
+            let logDetails = `Staff ${staffName} updated ${docName} Request #${requestId} for Resident ${residentName} to status: ${status}`;
             
+            if (status === 'Released' && orNumber) {
+                logDetails = `Staff ${staffName} released ${docName} Request #${requestId} for Resident ${residentName} with OR #${orNumber}`;
+            }
+            
+            // Generate matching pseudo-random code
+            const generatePickupCode = (id) => {
+                const salt = 83721;
+                const val = (parseInt(id) * salt).toString(16).toUpperCase();
+                return `OR-${val.padStart(6, 'X')}`;
+            };
+
             db.query(logSql, [official_id, 'Process Document', logDetails], (logErr) => {
                 if (logErr) console.error("Log error:", logErr); 
-                if (status === 'Ready to Print' && nameRes[0]?.email_address) { sendNotificationEmail(nameRes[0].email_address, 'Barangay Document Ready', `Good day ${residentName}! Your requested ${docName} is now Approved and Ready to Print. Please proceed to the Barangay Hall to claim it.`); }
+                
+                if (status === 'Waiting for Printing' && nameRes[0]?.email_address) { 
+                    sendNotificationEmail(nameRes[0].email_address, 'Document Request Approved', `Good day ${residentName}! Your request for ${docName} has been approved and is now waiting for printing.`); 
+                }
+                if (status === 'Ready for Pickup' && nameRes[0]?.email_address) { 
+                    sendNotificationEmail(nameRes[0].email_address, 'Document Ready for Pickup', `Good day ${residentName}! Your requested ${docName} is now printed and Ready for Pickup. Please proceed to the Barangay Hall to claim it. \n\nYour Pickup Code is: ${generatePickupCode(requestId)}\n\nPlease present this code to the staff.`); 
+                }
+                if (status === 'Released' && nameRes[0]?.email_address) {
+                    sendNotificationEmail(nameRes[0].email_address, 'Document Released', `Good day ${residentName}! Your requested ${docName} has been successfully released. Thank you!`);
+                }
+
                 res.json({ message: `Status successfully changed to ${status}` });
             });
         });
@@ -178,10 +205,37 @@ router.put('/no-show/:id', (req, res) => {
     });
 });
 
+// GET: Fetch full transaction receipt by Request ID
+router.get('/receipt/:requestId', (req, res) => {
+    const sql = `
+        SELECT req.request_id, req.status, req.date_requested, req.or_number,
+               res.first_name, res.last_name, 
+               doc.doc_name, doc.base_fee,
+               req.processed_by
+        FROM Document_RequestTable req
+        JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
+        JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
+        WHERE req.request_id = ?
+    `;
+    db.query(sql, [req.params.requestId], (err, results) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        
+        if (results.length === 0) return res.status(404).json({ error: "Receipt not found." });
+        
+        const receipt = results[0];
+        
+        // Fetch the staff name
+        db.query(`SELECT full_name FROM Barangay_OfficialsTable WHERE official_id = ?`, [receipt.processed_by || 0], (staffErr, staffRes) => {
+            receipt.staff_name = (staffRes && staffRes.length > 0) ? staffRes[0].full_name : 'System Admin';
+            res.json(receipt);
+        });
+    });
+});
+
 // GET: Fetch all completed, rejected, or cancelled document records
 router.get('/document-records', (req, res) => {
     const sql = `
-        SELECT req.request_id, req.status, req.date_requested, req.purpose, req.remarks,
+        SELECT req.request_id, req.status, req.date_requested, req.purpose, req.remarks, req.or_number,
                res.first_name, res.last_name, 
                doc.doc_name, q.daily_sequence_no
         FROM Document_RequestTable req

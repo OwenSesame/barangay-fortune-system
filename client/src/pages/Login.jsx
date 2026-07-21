@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export default function Login() {
   const [role, setRole] = useState('Resident');
@@ -35,9 +36,9 @@ export default function Login() {
       }
     } catch (err) {
       if (err.response && err.response.data && err.response.data.error) {
-        alert(err.response.data.error);
+        toast.error(err.response.data.error);
       } else {
-        alert("Invalid credentials or server error");
+        toast.error("Invalid credentials or server error");
       }
     }
   };

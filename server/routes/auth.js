@@ -11,11 +11,14 @@ import path from 'path';
 // RATE LIMITING CONFIGURATION (Feature 1)
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // Limit each IP to 5 requests per windowMs
-    message: { error: "Security Alert: Too many login attempts. Please try again after 15 minutes." },
+    max: 100, // Increased max limit to prevent DoS, but let our custom logic handle specific lockouts
+    message: { error: "Security Alert: Too many requests. Please try again later." },
     standardHeaders: true,
     legacyHeaders: false,
 });
+
+// IN-MEMORY LOGIN ATTEMPT TRACKER
+const loginAttempts = new Map();
 
 // Configure where and how to save images
 const storage = multer.diskStorage({
@@ -81,6 +84,16 @@ router.post('/register', upload.single('id_proof'), async (req, res) => {
 router.post('/login', loginLimiter, async (req, res) => {
     let { role, identifier, password } = req.body;
 
+    // --- Custom Incremental Lockout Logic ---
+    let attemptData = loginAttempts.get(identifier) || { count: 0, lockUntil: 0 };
+
+    if (attemptData.lockUntil > Date.now()) {
+        const remainingTime = Math.ceil((attemptData.lockUntil - Date.now()) / 1000);
+        const minutes = Math.floor(remainingTime / 60);
+        const seconds = remainingTime % 60;
+        return res.status(429).json({ error: `Too many failed attempts. Please try again in ${minutes}m ${seconds}s.` });
+    }
+
     // 1. Translate UI names to Database Roles
     let dbRole = role;
     if (role === 'Barangay Staff') dbRole = 'Staff';
@@ -105,7 +118,31 @@ router.post('/login', loginLimiter, async (req, res) => {
             return res.status(500).json({ error: "Database error" });
         }
         
-        if (result.length === 0) return res.status(404).json({ error: "User not found" });
+        const handleFailedAttempt = () => {
+            attemptData.count += 1;
+            let lockDuration = 0;
+            
+            // Lockout every 5 attempts with increasing durations
+            if (attemptData.count % 5 === 0) {
+                if (attemptData.count === 5) lockDuration = 1 * 60 * 1000; // 1 min
+                else if (attemptData.count === 10) lockDuration = 5 * 60 * 1000; // 5 min
+                else if (attemptData.count === 15) lockDuration = 15 * 60 * 1000; // 15 min
+                else if (attemptData.count === 20) lockDuration = 30 * 60 * 1000; // 30 min
+                else if (attemptData.count >= 25) lockDuration = 60 * 60 * 1000; // 1 hour
+                
+                attemptData.lockUntil = Date.now() + lockDuration;
+            }
+            loginAttempts.set(identifier, attemptData);
+            
+            if (lockDuration > 0) {
+                const min = lockDuration / 60000;
+                return res.status(429).json({ error: `Too many failed attempts. Account locked for ${min} minute(s).` });
+            }
+            
+            return res.status(400).json({ error: "Invalid credentials" });
+        };
+
+        if (result.length === 0) return handleFailedAttempt(); // Treat non-existent user as failed attempt to prevent enumeration
 
         const user = result[0];
 
@@ -124,9 +161,12 @@ router.post('/login', loginLimiter, async (req, res) => {
 
         // 4. Verify Password
         const validPassword = await bcrypt.compare(password, user.password_hash);
-        if (!validPassword) return res.status(400).json({ error: "Invalid credentials" });
+        if (!validPassword) return handleFailedAttempt();
 
         // 5. Generate Token and send response
+        // On successful login, clear the attempts tracking for this user
+        loginAttempts.delete(identifier);
+        
         // Note: Residents use 'resident_id', Officials use 'official_id'
         const userId = dbRole === 'Resident' ? user.resident_id : user.official_id;
         const token = jwt.sign({ id: userId, role: dbRole }, process.env.JWT_SECRET, { expiresIn: '1h' });

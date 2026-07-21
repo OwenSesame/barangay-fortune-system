@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -23,6 +24,7 @@ import StaffReadyToPrint from './pages/StaffReadyToPrint';
 function App() {
   return (
     <Router>
+      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />

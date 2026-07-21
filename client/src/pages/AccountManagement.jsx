@@ -2,6 +2,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 export default function AccountManagement() {
   const navigate = useNavigate();
@@ -75,8 +76,8 @@ export default function AccountManagement() {
       setIsAddStaffOpen(false);
       setNewStaff({ full_name: '', username: '', password: '' });
       fetchData();
-      alert("New Staff Account Successfully Created!");
-    } catch (error) { alert("Error creating staff account. Username might be taken."); }
+      toast.success("New Staff Account Successfully Created!");
+    } catch (error) { toast.error("Error creating staff account. Username might be taken."); }
   };
 
   const handleUpdateAccount = async (e) => {
@@ -94,8 +95,8 @@ export default function AccountManagement() {
       });
       setEditModal({ isOpen: false, id: null, type: '', full_name: '', username: '', first_name: '', last_name: '', contact_number: '', email_address: '' });
       fetchData();
-      alert("Account information updated successfully!");
-    } catch (error) { alert("Error updating account details."); }
+      toast.success("Account information updated successfully!");
+    } catch (error) { toast.error("Error updating account details."); }
   };
 
   const handleToggleAccess = async (staffId, currentAccess) => {
@@ -103,7 +104,7 @@ export default function AccountManagement() {
       const newAccess = currentAccess === 1 ? 0 : 1; 
       await axios.put(`http://localhost:5000/api/admin/staff/${staffId}/toggle-access`, { can_review: newAccess });
       fetchData();
-    } catch (error) { alert("Error updating permissions."); }
+    } catch (error) { toast.error("Error updating permissions."); }
   };
 
   const handleDeleteAccount = async (id, type) => {
@@ -111,7 +112,7 @@ export default function AccountManagement() {
     try {
       await axios.put('http://localhost:5000/api/admin/accounts/archive', { id, account_type: type });
       fetchData();
-    } catch (error) { alert("Cannot delete account. They may have active records."); }
+    } catch (error) { toast.error("Cannot delete account. They may have active records."); }
   };
 
   // Open the edit modal and populate the specific fields

@@ -2,6 +2,8 @@ import AdminSidebar from '../components/AdminSidebar';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import ReceiptModal from '../components/ReceiptModal';
 
 export default function ReadyToPrint() {
   const navigate = useNavigate();
@@ -9,6 +11,11 @@ export default function ReadyToPrint() {
   
   // Persistent Notification State
   const [badgeCounts, setBadgeCounts] = useState({ pending: 0, ready: 0, residentApprovals: 0 });
+
+  const [showORModal, setShowORModal] = useState(false);
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState(null);
+  const [orNumber, setOrNumber] = useState('');
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -18,11 +25,11 @@ export default function ReadyToPrint() {
             axios.get('http://localhost:5000/api/admin/pending-residents')
         ]);
         const pending = requestsRes.data.filter(req => req.status === 'Pending').length;
-        const ready = requestsRes.data.filter(req => req.status === 'Ready to Print').length;
+        const ready = requestsRes.data.filter(req => req.status === 'Waiting for Printing' || req.status === 'Ready for Pickup').length;
         const residentApprovals = residentsRes.data.length;
         setBadgeCounts({ pending, ready, residentApprovals });
         
-        setPrintQueue(requestsRes.data.filter(req => req.status === 'Ready to Print'));
+        setPrintQueue(requestsRes.data.filter(req => req.status === 'Waiting for Printing' || req.status === 'Ready for Pickup'));
       } catch (error) {
         console.error("Failed to fetch notification counts", error);
       }
@@ -33,15 +40,33 @@ export default function ReadyToPrint() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleRelease = async (requestId) => {
-    if (!window.confirm("Confirm: Has the resident physically picked up this document?")) return;
+  const handleReleaseClick = (requestId) => {
+    setSelectedRequestId(requestId);
+    setOrNumber('');
+    setShowORModal(true);
+  };
+
+  const handleGenerateReceipt = () => {
+    if (!orNumber.trim()) return toast.error("Please enter a valid OR Number.");
+    setShowORModal(false);
+    setShowReceiptPreview(true);
+  };
+
+  const handleReleaseSubmit = async () => {
+    if (!window.confirm("Confirm finalizing this transaction?")) return;
     try {
       const adminId = localStorage.getItem('userId');
-      await axios.put(`http://localhost:5000/api/staff/update-status/${requestId}`, { status: 'Released', official_id: adminId });
-      alert("Document successfully marked as Released!");
-      fetchPrintQueue();
+      await axios.put(`http://localhost:5000/api/staff/update-status/${selectedRequestId}`, { 
+          status: 'Released', 
+          official_id: adminId,
+          orNumber: orNumber.trim()
+      });
+      setPrintQueue(prev => prev.filter(r => r.request_id !== selectedRequestId));
+      toast.success("Document successfully marked as Released with OR!");
+      setShowReceiptPreview(false);
     } catch (error) {
-      alert("Error updating document status.");
+      console.error(error);
+      toast.error("Error updating document status.");
     }
   };
 
@@ -50,10 +75,11 @@ export default function ReadyToPrint() {
     try {
       const adminId = localStorage.getItem('userId');
       await axios.put(`http://localhost:5000/api/staff/no-show/${requestId}`, { official_id: adminId });
-      alert("Document forfeited due to No-Show.");
-      fetchPrintQueue();
+      setPrintQueue(prev => prev.filter(r => r.request_id !== requestId));
+      toast.success("Document forfeited due to No-Show.");
     } catch (error) {
-      alert("Error updating document status.");
+      console.error(error);
+      toast.error("Error updating document status.");
     }
   };
 
@@ -114,13 +140,20 @@ export default function ReadyToPrint() {
                     <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>Purpose: {req.purpose || 'None provided'}</div>
                   </td>
                   <td style={{ padding: '15px 25px' }}>
-                    <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', background: '#dcfce7', color: '#166534' }}>Ready for Pickup</span>
+                    <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', background: req.status === 'Waiting for Printing' ? '#fef3c7' : '#dcfce7', color: req.status === 'Waiting for Printing' ? '#92400e' : '#166534' }}>
+                      {req.status === 'Waiting for Printing' ? 'Waiting for Printing' : 'Ready for Pickup'}
+                    </span>
                   </td>
                   <td style={{ padding: '15px 25px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => navigate(`/print/${req.request_id}`)} style={{ padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>🖨️ Print</button>
-                      <button onClick={() => handleRelease(req.request_id)} style={{ padding: '8px', background: '#64748b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>✅ Release</button>
-                      <button onClick={() => handleNoShow(req.request_id)} style={{ padding: '8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flex: 1 }}>❌ No-Show</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {req.status === 'Waiting for Printing' ? (
+                        <button onClick={() => navigate(`/print/${req.request_id}`)} className="transition-all duration-300 hover:scale-105" style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>🖨️ Print</button>
+                      ) : (
+                        <>
+                          <button onClick={() => handleReleaseClick(req.request_id)} className="transition-all duration-300 hover:scale-105" style={{ padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>✅ Mark as Picked Up</button>
+                          <button onClick={() => handleNoShow(req.request_id)} className="transition-all duration-300 hover:scale-105" style={{ padding: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>❌ Mark as No-Show</button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -129,6 +162,40 @@ export default function ReadyToPrint() {
           </table>
         </div>
       </div>
+
+      {/* Official Receipt Modal */}
+      {showORModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 15px 0', color: '#0f172a', fontSize: '20px' }}>Finalize Transaction</h3>
+            <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '14px' }}>Please enter the Official Receipt (OR) Number provided by the resident to officialize this release.</p>
+            
+            <input 
+              type="text" 
+              placeholder="e.g. OR-123456" 
+              value={orNumber}
+              onChange={(e) => setOrNumber(e.target.value)}
+              style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', marginBottom: '20px', fontSize: '16px', boxSizing: 'border-box' }}
+              autoFocus
+            />
+            
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowORModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+              <button onClick={handleGenerateReceipt} style={{ padding: '10px 20px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Generate Receipt</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Preview Modal */}
+      <ReceiptModal 
+        isOpen={showReceiptPreview}
+        onClose={() => setShowReceiptPreview(false)}
+        orNumber={orNumber}
+        requestId={selectedRequestId}
+        onFinalize={handleReleaseSubmit}
+        mode="preview"
+      />
     </div>
   );
 }

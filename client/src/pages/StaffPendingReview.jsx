@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 export default function StaffPendingReview() {
   const navigate = useNavigate();
@@ -34,7 +35,7 @@ export default function StaffPendingReview() {
         // 3. Fetch Notifications Count
         setCounts({
           pending: response.data.filter(req => req.status === 'Pending').length,
-          ready: response.data.filter(req => req.status === 'Ready to Print').length
+          ready: response.data.filter(req => req.status === 'Waiting for Printing' || req.status === 'Ready for Pickup').length
         });
       } catch (error) {
         console.error("Failed to fetch data", error);
@@ -53,10 +54,11 @@ export default function StaffPendingReview() {
       setPendingRequests(response.data.filter(req => req.status === 'Pending'));
       setCounts({
         pending: response.data.filter(req => req.status === 'Pending').length,
-        ready: response.data.filter(req => req.status === 'Ready to Print').length
+        ready: response.data.filter(req => req.status === 'Waiting for Printing' || req.status === 'Ready for Pickup').length
       });
+      toast.success("Request approved successfully!");
     } catch (error) {
-      alert("Error approving request.");
+      toast.error("Error approving request.");
     }
   };
 
@@ -69,10 +71,11 @@ export default function StaffPendingReview() {
       setPendingRequests(response.data.filter(req => req.status === 'Pending'));
       setCounts({
         pending: response.data.filter(req => req.status === 'Pending').length,
-        ready: response.data.filter(req => req.status === 'Ready to Print').length
+        ready: response.data.filter(req => req.status === 'Waiting for Printing' || req.status === 'Ready for Pickup').length
       });
+      toast.success("Request rejected.");
     } catch (error) {
-      alert("Error rejecting request.");
+      toast.error("Error rejecting request.");
     }
   };
 
@@ -104,7 +107,7 @@ export default function StaffPendingReview() {
         <h2 style={{ fontSize: '24px', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>👨‍💼 Front Desk System</h2>
         <hr style={{ border: '0', borderTop: '1px solid #334155', marginBottom: '40px', width: '100%' }} />
         <div style={{ flex: 1 }}>
-          <p onClick={() => navigate('/staff-home')} style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+          <p onClick={() => navigate('/staff-home')} className="transition-all duration-300 hover:translate-x-2 hover:opacity-80" style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
             🏠 Home Dashboard
           </p>
           
@@ -113,16 +116,16 @@ export default function StaffPendingReview() {
             {counts.pending > 0 && <span className="notification-dot">{counts.pending}</span>}
           </p>
 
-          <p onClick={() => navigate('/staff-ready')} style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+          <p onClick={() => navigate('/staff-ready')} className="transition-all duration-300 hover:translate-x-2 hover:opacity-80" style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
             🔖 Ready to Print 
             {counts.ready > 0 && <span className="notification-dot">{counts.ready}</span>}
           </p>
           
-          <p onClick={() => navigate('/document-records')} style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+          <p onClick={() => navigate('/document-records')} className="transition-all duration-300 hover:translate-x-2 hover:opacity-80" style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
             📁 Document Records
           </p>
         </div>
-        <button onClick={handleLogout} style={{ padding: '10px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Logout</button>
+        <button onClick={handleLogout} className="transition-all duration-300 bg-[#334155] text-white hover:bg-red-500 hover:text-white" style={{ padding: '10px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Logout</button>
       </div>
 
       <div style={{ flex: 1, padding: '40px' }}>
@@ -149,7 +152,7 @@ export default function StaffPendingReview() {
                   </td>
                   <td style={{ padding: '15px 25px' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => handleUpdateStatus(req.request_id, 'Ready to Print')} style={{ padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', flex: 1 }}>Approve</button>
+                      <button onClick={() => handleUpdateStatus(req.request_id, 'Waiting for Printing')} style={{ padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', flex: 1 }}>Approve</button>
                       <button onClick={() => handleReject(req.request_id)} style={{ padding: '8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', flex: 1 }}>Reject</button>
                     </div>
                   </td>

@@ -51,7 +51,7 @@ export default function ForgotPassword() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '20px' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '8px', color: '#334155', fontWeight: '600', fontSize: '13px', textTransform: 'uppercase' }}>Email Address</label>
             <input 

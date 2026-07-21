@@ -40,19 +40,25 @@ const getDayName = (dateStr) => {
 
 // GET: Fetch available dates for appointment scheduling
 router.get('/available-dates', (req, res) => {
-    // 1. Fetch weekly limits
-    const limitSql = `SELECT setting_value FROM system_settingstable WHERE setting_key = 'WEEKLY_TRANSACTION_LIMITS'`;
-    db.query(limitSql, (err, limitResults) => {
+    // 1. Fetch limits
+    db.query(`SELECT setting_value FROM system_settingstable WHERE setting_key = 'DEFAULT_DAILY_LIMIT'`, (err, limitResults) => {
         if (err) return res.status(500).json({ error: "Database error" });
         
-        let limits = { Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 0 };
+        let defaultLimit = 50;
         if (limitResults.length > 0) {
-            try {
-                limits = JSON.parse(limitResults[0].setting_value);
-            } catch (e) {
-                console.error("Error parsing limits");
-            }
+            defaultLimit = parseInt(limitResults[0].setting_value, 10);
         }
+        
+        db.query(`SELECT specific_date, document_limit FROM Date_Specific_LimitsTable`, (dateErr, dateRes) => {
+            if (dateErr) return res.status(500).json({ error: "Database error" });
+            
+            const specificLimits = {};
+            dateRes.forEach(row => {
+                if (row.specific_date) {
+                    const dStr = new Date(row.specific_date).toLocaleDateString('en-CA');
+                    specificLimits[dStr] = row.document_limit;
+                }
+            });
         
         // 2. Fetch counts for the next 14 days (EXCLUDING Cancelled and Rejected)
         const countSql = `
@@ -88,10 +94,15 @@ router.get('/available-dates', (req, res) => {
                 const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
                 
                 const booked = bookedMap[dateStr] || 0;
-                const dayLimit = limits[dayName] || 0;
                 
-                // Full if limit > 0 AND booked >= limit
-                const isFull = dayLimit > 0 && booked >= dayLimit;
+                // Determine the limit for this specific day
+                let dayLimit = defaultLimit;
+                if (specificLimits[dateStr] !== undefined) {
+                    dayLimit = specificLimits[dateStr];
+                }
+                
+                // Full if limit > 0 AND booked >= limit, OR if limit is explicitly 0 (closed)
+                const isFull = (dayLimit > 0 && booked >= dayLimit) || dayLimit === 0;
                 
                 availableDates.push({
                     date: dateStr,
@@ -101,6 +112,7 @@ router.get('/available-dates', (req, res) => {
             }
             
             res.json(availableDates);
+        });
         });
     });
 });
@@ -113,7 +125,7 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
     // FEATURE 4: Anti-Spam Duplicate Prevention
     const duplicateCheckSql = `
         SELECT request_id FROM Document_RequestTable 
-        WHERE resident_id = ? AND doc_type_id = ? AND status IN ('Pending', 'Ready to Print')
+        WHERE resident_id = ? AND doc_type_id = ? AND status IN ('Pending', 'Waiting for Printing', 'Ready for Pickup')
     `;
     db.query(duplicateCheckSql, [resident_id, doc_type_id], (dupErr, dupRes) => {
         if (dupErr) return res.status(500).json({ error: "Database error during spam check." });
@@ -141,16 +153,22 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
         const residentName = nameRes.length > 0 ? `${nameRes[0].first_name} ${nameRes[0].last_name}` : 'Unknown Resident';
         const documentName = nameRes.length > 0 ? nameRes[0].doc_name : 'Unknown Document';
 
-        // Fetch the Weekly Limits Matrix
-        const limitSql = `SELECT setting_value FROM system_settingstable WHERE setting_key = 'WEEKLY_TRANSACTION_LIMITS'`;
-        db.query(limitSql, (limitErr, limitRes) => {
+        // Fetch the limits
+        db.query(`SELECT setting_value FROM system_settingstable WHERE setting_key = 'DEFAULT_DAILY_LIMIT'`, (limitErr, limitRes) => {
             if (limitErr) return res.status(500).json({ error: "Database error." });
             
-            let limits = { Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0, Saturday: 0 };
+            let defaultLimit = 50;
             if (limitRes.length > 0) {
-                try { limits = JSON.parse(limitRes[0].setting_value); } catch(e) {}
+                defaultLimit = parseInt(limitRes[0].setting_value, 10);
             }
-            const dayLimit = limits[dayName] || 0;
+
+            db.query(`SELECT document_limit FROM Date_Specific_LimitsTable WHERE specific_date = ?`, [scheduled_date], (specErr, specRes) => {
+                if (specErr) return res.status(500).json({ error: "Database error." });
+                
+                let dayLimit = defaultLimit;
+                if (specRes.length > 0) {
+                    dayLimit = specRes[0].document_limit;
+                }
 
             // Count how many are already scheduled for this SPECIFIC date (EXCLUDING Cancelled and Rejected)
             const countSql = `SELECT COUNT(*) as totalScheduled FROM Document_RequestTable WHERE pick_up_date = ? AND status NOT IN ('Cancelled', 'Rejected')`;
@@ -179,13 +197,14 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
                     db.query(queueSql, [requestId, queueNumber.toString()], (qErr) => {
                         if (qErr) console.error(qErr);
                         
-                        const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
+                        const logSql = `INSERT INTO Audit_LogsTable (user_id, action_type, action_details) VALUES (?, ?, ?)`;
                         const logDetails = `Resident ${residentName} requested a ${documentName} for ${scheduled_date} (Request #${requestId})`;
                         db.query(logSql, [0, 'Document Requested', logDetails], () => {
                             res.json({ message: "Application submitted successfully", queue_number: queueNumber });
                         });
                     });
                 });
+            });
             });
         });
     }); // End of duplicate check
@@ -195,7 +214,7 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
 // GET: Fetch the latest request for the dashboard
 router.get('/latest/:residentId', (req, res) => {
     const sql = `
-        SELECT r.status as request_status, q.daily_sequence_no, r.pick_up_date as scheduled_date
+        SELECT r.request_id, r.status as request_status, q.daily_sequence_no, r.pick_up_date as scheduled_date
         FROM Document_RequestTable r
         JOIN Queue_ManagementTable q ON r.request_id = q.request_id
         WHERE r.resident_id = ? 

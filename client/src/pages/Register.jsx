@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -19,95 +20,100 @@ export default function Register() {
     for (const key in formData) dataToSend.append(key, formData[key]);
     if (idProof) dataToSend.append('id_proof', idProof);
 
+    const loadingToast = toast.loading('Submitting registration...');
     try {
       await axios.post('http://localhost:5000/api/auth/register', dataToSend, { headers: { 'Content-Type': 'multipart/form-data' } });
-      alert('Registration successful! It can be one week before official email that will be sent for them.');
+      toast.success('Registration successful! It can be up to a week before official email confirmation is sent.', { id: loadingToast, duration: 5000 });
       navigate('/');
     } catch (error) {
-      alert('Error registering account. Email might already exist.');
+      toast.error('Error registering account. Email might already exist.', { id: loadingToast });
     }
   };
 
-  const inputStyle = { width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '15px', boxSizing: 'border-box' };
-  const labelStyle = { display: 'block', marginBottom: '8px', color: '#334155', fontWeight: '500', fontSize: '14px' };
+  const inputClass = "w-full p-3 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
+  const labelClass = "block mb-2 text-slate-700 font-semibold text-xs uppercase tracking-wider";
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif', padding: '40px 20px' }}>
-      <div style={{ background: 'white', padding: '40px 50px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)', width: '100%', maxWidth: '600px' }}>
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 font-sans p-4 md:p-8">
+      <div className="bg-white p-8 md:p-10 rounded-lg shadow-xl w-full max-w-2xl border border-slate-200 transform transition-all">
         
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <h2 style={{ margin: '0', color: '#1e3a8a', fontSize: '24px' }}>Resident Registration</h2>
-          <p style={{ color: '#64748b', margin: '5px 0 0 0', fontSize: '14px' }}>Fill in your official details to access Barangay services.</p>
+        <div className="text-center mb-8">
+          <h2 className="m-0 text-blue-900 text-2xl md:text-3xl font-extrabold tracking-tight">Resident Registration</h2>
+          <p className="text-slate-500 mt-2 text-sm font-medium">Fill in your official details to access Barangay services.</p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
           
-          <div style={{ gridColumn: 'span 2' }}><h3 style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', margin: '0', color: '#0f172a', fontSize: '16px' }}>Personal Information</h3></div>
+          <div className="col-span-1 md:col-span-2">
+            <h3 className="border-b border-slate-200 pb-2 m-0 text-slate-900 text-base font-bold">Personal Information</h3>
+          </div>
 
           <div>
-            <label style={labelStyle}>First Name</label>
-            <input type="text" name="firstName" onChange={handleChange} required style={inputStyle} />
+            <label className={labelClass}>First Name</label>
+            <input type="text" name="firstName" onChange={handleChange} required className={inputClass} />
           </div>
           <div>
-            <label style={labelStyle}>Last Name</label>
-            <input type="text" name="lastName" onChange={handleChange} required style={inputStyle} />
+            <label className={labelClass}>Last Name</label>
+            <input type="text" name="lastName" onChange={handleChange} required className={inputClass} />
           </div>
           <div>
-            <label style={labelStyle}>Middle Name</label>
-            <input type="text" name="middleName" onChange={handleChange} style={inputStyle} />
+            <label className={labelClass}>Middle Name</label>
+            <input type="text" name="middleName" onChange={handleChange} className={inputClass} />
           </div>
           <div>
-            <label style={labelStyle}>Date of Birth</label>
-            <input type="date" name="dateOfBirth" onChange={handleChange} required style={inputStyle} />
+            <label className={labelClass}>Date of Birth</label>
+            <input type="date" name="dateOfBirth" onChange={handleChange} required className={inputClass} />
           </div>
           <div>
-            <label style={labelStyle}>Civil Status</label>
-            <select name="civilStatus" onChange={handleChange} style={inputStyle}>
+            <label className={labelClass}>Civil Status</label>
+            <select name="civilStatus" onChange={handleChange} className={inputClass + " bg-slate-50 cursor-pointer"}>
               <option value="Single">Single</option>
               <option value="Married">Married</option>
               <option value="Widowed">Widowed</option>
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Contact Number</label>
-            <input type="text" name="contactNumber" onChange={handleChange} required style={inputStyle} />
+            <label className={labelClass}>Contact Number</label>
+            <input type="text" name="contactNumber" onChange={handleChange} required className={inputClass} />
           </div>
           
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={labelStyle}>Complete Street Address</label>
-            <input type="text" name="address" onChange={handleChange} required style={inputStyle} />
+          <div className="col-span-1 md:col-span-2">
+            <label className={labelClass}>Complete Street Address</label>
+            <input type="text" name="address" onChange={handleChange} required className={inputClass} />
           </div>
 
-          <div style={{ gridColumn: 'span 2', marginTop: '10px' }}><h3 style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', margin: '0', color: '#0f172a', fontSize: '16px' }}>Account Security & Verification</h3></div>
+          <div className="col-span-1 md:col-span-2 mt-4">
+            <h3 className="border-b border-slate-200 pb-2 m-0 text-slate-900 text-base font-bold">Account Security & Verification</h3>
+          </div>
 
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={labelStyle}>Email Address</label>
-            <input type="email" name="email" onChange={handleChange} required style={inputStyle} />
+          <div className="col-span-1 md:col-span-2">
+            <label className={labelClass}>Email Address</label>
+            <input type="email" name="email" onChange={handleChange} required className={inputClass} />
           </div>
           <div>
-            <label style={labelStyle}>Password</label>
-            <input type="password" name="password" onChange={handleChange} required style={inputStyle} />
+            <label className={labelClass}>Password</label>
+            <input type="password" name="password" onChange={handleChange} required className={inputClass} />
           </div>
           <div>
-            <label style={labelStyle}>Confirm Password</label>
-            <input type="password" required style={inputStyle} />
+            <label className={labelClass}>Confirm Password</label>
+            <input type="password" required className={inputClass} />
           </div>
 
-          <div style={{ gridColumn: 'span 2', background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-            <label style={{ ...labelStyle, color: '#1e3a8a' }}>Upload Valid ID (Image)</label>
-            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '0', marginBottom: '10px' }}>Please provide a clear picture of your ID for verification purposes.</p>
-            <input type="file" accept="image/*" onChange={handleFileChange} required style={{ width: '100%', fontSize: '14px' }} />
+          <div className="col-span-1 md:col-span-2 bg-slate-50 p-5 rounded-lg border border-dashed border-slate-300 mt-2">
+            <label className={labelClass + " text-blue-900"}>Upload Valid ID (Image)</label>
+            <p className="text-xs text-slate-500 mt-0 mb-3 font-medium">Please provide a clear picture of your ID for verification purposes.</p>
+            <input type="file" accept="image/*" onChange={handleFileChange} required className="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors" />
           </div>
 
-          <div style={{ gridColumn: 'span 2', marginTop: '10px' }}>
-            <button type="submit" style={{ width: '100%', padding: '15px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
+          <div className="col-span-1 md:col-span-2 mt-4">
+            <button type="submit" className="w-full p-3.5 bg-emerald-500 text-white rounded-lg text-base font-bold cursor-pointer shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:shadow-emerald-500/50 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200">
               Submit Registration
             </button>
           </div>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', textDecoration: 'underline' }}>
+        <div className="text-center mt-6">
+          <button onClick={() => navigate('/')} className="bg-transparent border-none text-slate-500 cursor-pointer text-sm font-semibold hover:text-slate-800 transition-colors">
             ← Back to Login
           </button>
         </div>

@@ -2,6 +2,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 export default function ResidentApprovals() {
   const navigate = useNavigate();
@@ -48,10 +49,11 @@ export default function ResidentApprovals() {
   const handleApprove = async (residentId) => {
     try {
       await axios.put(`http://localhost:5000/api/admin/approve-resident/${residentId}`);
-      alert("Resident approved successfully! An email notification has been sent.");
-      fetchPendingResidents();
+      setPendingResidents(prev => prev.filter(r => r.resident_id !== residentId));
+      toast.success("Resident approved successfully! An email notification has been sent.");
     } catch (error) {
-      alert("Error approving resident.");
+      console.error(error);
+      toast.error("Error approving resident.");
     }
   };
 
@@ -61,10 +63,11 @@ export default function ResidentApprovals() {
 
     try {
       await axios.put(`http://localhost:5000/api/admin/reject-resident/${residentId}`, { reason });
-      alert("Resident rejected. An email notification has been sent.");
-      fetchPendingResidents();
+      setPendingResidents(prev => prev.filter(r => r.resident_id !== residentId));
+      toast.success("Resident rejected. An email notification has been sent.");
     } catch (error) {
-      alert("Error rejecting resident.");
+      console.error(error);
+      toast.error("Error rejecting resident.");
     }
   };
 

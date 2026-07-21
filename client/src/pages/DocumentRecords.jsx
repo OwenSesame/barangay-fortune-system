@@ -101,7 +101,7 @@ export default function DocumentRecords() {
             📁 Document Records
           </p>
         </div>
-        <button onClick={handleLogout} style={{ padding: '10px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Logout</button>
+        <button onClick={handleLogout} className="transition-all duration-300 bg-[#334155] text-white hover:bg-red-500 hover:text-white" style={{ padding: '10px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Logout</button>
       </div>
 
       <div style={{ flex: 1, padding: '40px' }}>
@@ -130,6 +130,7 @@ export default function DocumentRecords() {
                 <th style={{ padding: '15px 25px' }}>Resident</th>
                 <th style={{ padding: '15px 25px' }}>Document Type</th>
                 <th style={{ padding: '15px 25px' }}>Status</th>
+                <th style={{ padding: '15px 25px' }}>OR Number</th>
                 <th style={{ padding: '15px 25px' }}>Processed By</th>
               </tr>
             </thead>
@@ -150,6 +151,9 @@ export default function DocumentRecords() {
                     }}>
                       {rec.status}
                     </span>
+                  </td>
+                  <td style={{ padding: '15px 25px', color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>
+                    {rec.or_number ? `OR# ${rec.or_number}` : '-'}
                   </td>
                   <td style={{ padding: '15px 25px', color: '#64748b', fontSize: '13px' }}>ID: #{rec.processed_by || 'N/A'}</td>
                 </tr>

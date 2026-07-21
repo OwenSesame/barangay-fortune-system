@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 export default function PrintCertificate() {
   const { id } = useParams(); 
@@ -14,7 +15,7 @@ export default function PrintCertificate() {
         setDocData(response.data);
       } catch (error) {
         console.error("Error fetching document data", error);
-        alert("Failed to load document data.");
+        toast.error("Failed to load document data.");
       }
     };
     fetchDocData();
@@ -22,7 +23,18 @@ export default function PrintCertificate() {
 
   if (!docData) return <div style={{ textAlign: 'center', marginTop: '50px' }}>Loading Document...</div>;
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    try {
+      const staffId = localStorage.getItem('userId');
+      await axios.put(`http://localhost:5000/api/staff/update-status/${id}`, { 
+        status: 'Ready for Pickup', 
+        official_id: staffId 
+      });
+      // Optionally toast here, but we will just print
+    } catch (error) {
+      console.error("Failed to update status", error);
+      toast.error("Failed to update status automatically.");
+    }
     window.print(); 
   };
 

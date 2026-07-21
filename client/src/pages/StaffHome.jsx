@@ -79,23 +79,23 @@ export default function StaffHome() {
           </p>
           
           {canReview && (
-            <p onClick={() => navigate('/staff-pending')} style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+            <p onClick={() => navigate('/staff-pending')} className="transition-all duration-300 hover:translate-x-2 hover:opacity-80" style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
               📋 Pending Review 
               {counts.pending > 0 && <span className="notification-dot">{counts.pending}</span>}
             </p>
           )}
 
-          <p onClick={() => navigate('/staff-ready')} style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+          <p onClick={() => navigate('/staff-ready')} className="transition-all duration-300 hover:translate-x-2 hover:opacity-80" style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
             🔖 Ready to Print 
             {counts.ready > 0 && <span className="notification-dot">{counts.ready}</span>}
           </p>
           
-          <p onClick={() => navigate('/document-records')} style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+          <p onClick={() => navigate('/document-records')} className="transition-all duration-300 hover:translate-x-2 hover:opacity-80" style={{ margin: '25px 0', cursor: 'pointer', fontWeight: 'normal', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
             📁 Document Records
           </p>
         </div>
 
-        <button onClick={handleLogout} style={{ padding: '10px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+        <button onClick={handleLogout} className="transition-all duration-300 bg-[#334155] text-white hover:bg-red-500 hover:text-white" style={{ padding: '10px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
           Logout
         </button>
       </div>

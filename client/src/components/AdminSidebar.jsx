@@ -15,6 +15,7 @@ export default function AdminSidebar({ badgeCounts = { pending: 0, ready: 0, res
     return (
       <p 
         onClick={() => navigate(to)} 
+        className="transition-all duration-300 hover:translate-x-2 hover:opacity-80"
         style={{ 
           margin: '15px 0', 
           cursor: 'pointer', 
@@ -22,7 +23,6 @@ export default function AdminSidebar({ badgeCounts = { pending: 0, ready: 0, res
           alignItems: 'center', 
           fontWeight: isActive ? 'bold' : 'normal', 
           color: isActive ? 'white' : '#a5b4fc',
-          transition: 'color 0.2s'
         }}
       >
         <span style={{ marginRight: '8px' }}>{icon}</span>
@@ -52,7 +52,8 @@ export default function AdminSidebar({ badgeCounts = { pending: 0, ready: 0, res
       </div>
       <button 
         onClick={handleLogout} 
-        style={{ padding: '10px', background: 'white', color: '#1e1b4b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginTop: '20px' }}
+        className="transition-all duration-300 bg-white text-[#1e1b4b] hover:bg-red-500 hover:text-white"
+        style={{ padding: '10px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginTop: '20px' }}
       >
         Logout
       </button>
