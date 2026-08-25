@@ -51,8 +51,22 @@ export default function StaffReadyToPrint() {
     setShowORModal(true);
   };
 
+  const generateORCode = (id) => {
+    if (!id) return '';
+    const salt = 83721;
+    const val = (parseInt(id) * salt).toString(16).toUpperCase();
+    return `OR-${val.padStart(6, 'X')}`;
+  };
+
   const handleGenerateReceipt = () => {
-    if (!orNumber.trim()) return toast.error("Please enter a valid OR Number.");
+    const cleanOr = orNumber.trim().toUpperCase();
+    if (!cleanOr) return toast.error("Please enter the Official Receipt (OR) / Pickup Code.");
+    
+    const expectedCode = generateORCode(selectedRequestId);
+    if (cleanOr !== expectedCode.toUpperCase()) {
+      return toast.error(`Invalid OR Code. The entered code does not match the resident's pickup code (${expectedCode}).`);
+    }
+
     setShowORModal(false);
     setShowReceiptPreview(true);
   };
@@ -63,7 +77,7 @@ export default function StaffReadyToPrint() {
       await axios.put(`http://localhost:5000/api/staff/update-status/${requestId}`, { 
           status: newStatus, 
           official_id: staffId,
-          orNumber: receiptNo 
+          orNumber: receiptNo ? receiptNo.trim() : null
       });
       const response = await axios.get('http://localhost:5000/api/staff/pending-requests');
       setReadyRequests(response.data.filter(req => req.status === 'Waiting for Printing' || req.status === 'Ready for Pickup'));
@@ -74,7 +88,9 @@ export default function StaffReadyToPrint() {
       toast.success("Document released successfully!");
       if (newStatus === 'Released') setShowReceiptPreview(false);
     } catch (error) {
-      toast.error("Error releasing document.");
+      console.error(error);
+      const msg = error.response?.data?.error || error.response?.data?.message || "Error releasing document.";
+      toast.error(msg);
     }
   };
 

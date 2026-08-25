@@ -46,8 +46,22 @@ export default function ReadyToPrint() {
     setShowORModal(true);
   };
 
+  const generateORCode = (id) => {
+    if (!id) return '';
+    const salt = 83721;
+    const val = (parseInt(id) * salt).toString(16).toUpperCase();
+    return `OR-${val.padStart(6, 'X')}`;
+  };
+
   const handleGenerateReceipt = () => {
-    if (!orNumber.trim()) return toast.error("Please enter a valid OR Number.");
+    const cleanOr = orNumber.trim().toUpperCase();
+    if (!cleanOr) return toast.error("Please enter the Official Receipt (OR) / Pickup Code.");
+    
+    const expectedCode = generateORCode(selectedRequestId);
+    if (cleanOr !== expectedCode.toUpperCase()) {
+      return toast.error(`Invalid OR Code. The entered code does not match the resident's pickup code (${expectedCode}).`);
+    }
+
     setShowORModal(false);
     setShowReceiptPreview(true);
   };
@@ -66,7 +80,8 @@ export default function ReadyToPrint() {
       setShowReceiptPreview(false);
     } catch (error) {
       console.error(error);
-      toast.error("Error updating document status.");
+      const msg = error.response?.data?.error || error.response?.data?.message || "Error updating document status.";
+      toast.error(msg);
     }
   };
 

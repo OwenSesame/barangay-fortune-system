@@ -62,52 +62,85 @@ router.put('/update-status/:id', (req, res) => {
         const docName = nameRes.length > 0 ? nameRes[0].doc_name : 'Document';
         const staffName = nameRes.length > 0 && nameRes[0].staff_name ? nameRes[0].staff_name : 'Staff';
 
-        // 2. Update the document's status
-        let sql = `UPDATE Document_RequestTable SET status = ?, processed_by = ? WHERE request_id = ?`;
-        let params = [status, official_id, requestId];
+        const proceedUpdate = (validOrNumber) => {
+            let sql = `UPDATE Document_RequestTable SET status = ?, processed_by = ? WHERE request_id = ?`;
+            let params = [status, official_id, requestId];
 
-        if (status === 'Released' && orNumber) {
-            sql = `UPDATE Document_RequestTable SET status = ?, processed_by = ?, or_number = ? WHERE request_id = ?`;
-            params = [status, official_id, orNumber, requestId];
-        }
-        
-        db.query(sql, params, (err, result) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ error: "Database error" });
-            }
-
-            // 3. Save this action to the Admin Audit Logs!
-            const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
-            let logDetails = `Staff ${staffName} updated ${docName} Request #${requestId} for Resident ${residentName} to status: ${status}`;
-            
-            if (status === 'Released' && orNumber) {
-                logDetails = `Staff ${staffName} released ${docName} Request #${requestId} for Resident ${residentName} with OR #${orNumber}`;
+            if (status === 'Released' && validOrNumber) {
+                sql = `UPDATE Document_RequestTable SET status = ?, processed_by = ?, or_number = ? WHERE request_id = ?`;
+                params = [status, official_id, validOrNumber, requestId];
             }
             
-            // Generate matching pseudo-random code
-            const generatePickupCode = (id) => {
-                const salt = 83721;
-                const val = (parseInt(id) * salt).toString(16).toUpperCase();
-                return `OR-${val.padStart(6, 'X')}`;
-            };
+            db.query(sql, params, (err, result) => {
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ error: "Database error" });
+                }
 
-            db.query(logSql, [official_id, 'Process Document', logDetails], (logErr) => {
-                if (logErr) console.error("Log error:", logErr); 
+                // 3. Save this action to the Admin Audit Logs!
+                const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
+                let logDetails = `Staff ${staffName} updated ${docName} Request #${requestId} for Resident ${residentName} to status: ${status}`;
                 
-                if (status === 'Waiting for Printing' && nameRes[0]?.email_address) { 
-                    sendNotificationEmail(nameRes[0].email_address, 'Document Request Approved', `Good day ${residentName}! Your request for ${docName} has been approved and is now waiting for printing.`); 
+                if (status === 'Released' && validOrNumber) {
+                    logDetails = `Staff ${staffName} released ${docName} Request #${requestId} for Resident ${residentName} with OR #${validOrNumber}`;
                 }
-                if (status === 'Ready for Pickup' && nameRes[0]?.email_address) { 
-                    sendNotificationEmail(nameRes[0].email_address, 'Document Ready for Pickup', `Good day ${residentName}! Your requested ${docName} is now printed and Ready for Pickup. Please proceed to the Barangay Hall to claim it. \n\nYour Pickup Code is: ${generatePickupCode(requestId)}\n\nPlease present this code to the staff.`); 
-                }
-                if (status === 'Released' && nameRes[0]?.email_address) {
-                    sendNotificationEmail(nameRes[0].email_address, 'Document Released', `Good day ${residentName}! Your requested ${docName} has been successfully released. Thank you!`);
-                }
+                
+                // Generate matching pseudo-random code
+                const generatePickupCode = (id) => {
+                    const salt = 83721;
+                    const val = (parseInt(id) * salt).toString(16).toUpperCase();
+                    return `OR-${val.padStart(6, 'X')}`;
+                };
 
-                res.json({ message: `Status successfully changed to ${status}` });
+                db.query(logSql, [official_id, 'Process Document', logDetails], (logErr) => {
+                    if (logErr) console.error("Log error:", logErr); 
+                    
+                    if (status === 'Waiting for Printing' && nameRes[0]?.email_address) { 
+                        sendNotificationEmail(nameRes[0].email_address, 'Document Request Approved', `Good day ${residentName}! Your request for ${docName} has been approved and is now waiting for printing.`); 
+                    }
+                    if (status === 'Ready for Pickup' && nameRes[0]?.email_address) { 
+                        sendNotificationEmail(nameRes[0].email_address, 'Document Ready for Pickup', `Good day ${residentName}! Your requested ${docName} is now printed and Ready for Pickup. Please proceed to the Barangay Hall to claim it. \n\nYour Pickup Code is: ${generatePickupCode(requestId)}\n\nPlease present this code to the staff.`); 
+                    }
+                    if (status === 'Released' && nameRes[0]?.email_address) {
+                        sendNotificationEmail(nameRes[0].email_address, 'Document Released', `Good day ${residentName}! Your requested ${docName} has been successfully released. Thank you!`);
+                    }
+
+                    res.json({ message: `Status successfully changed to ${status}` });
+                });
             });
-        });
+        };
+
+        // Generate matching pseudo-random code
+        const generatePickupCode = (id) => {
+            const salt = 83721;
+            const val = (parseInt(id) * salt).toString(16).toUpperCase();
+            return `OR-${val.padStart(6, 'X')}`;
+        };
+
+        // 2. Validate OR Code when releasing a document
+        if (status === 'Released') {
+            if (!orNumber || typeof orNumber !== 'string' || !orNumber.trim()) {
+                return res.status(400).json({ error: "Official Receipt (OR) Code is required to officialize this release." });
+            }
+            const cleanOr = orNumber.trim().toUpperCase();
+            const expectedCode = generatePickupCode(requestId);
+
+            if (cleanOr !== expectedCode.toUpperCase()) {
+                return res.status(400).json({ error: `Invalid OR Code. The entered code does not match the resident's assigned pickup code (${expectedCode}).` });
+            }
+
+            // Check if OR Number is already used for another document request
+            const checkDupSql = `SELECT request_id FROM Document_RequestTable WHERE or_number = ? AND request_id != ?`;
+            db.query(checkDupSql, [cleanOr, requestId], (dupErr, dupRes) => {
+                if (dupErr) return res.status(500).json({ error: "Database error while verifying OR Code." });
+                if (dupRes && dupRes.length > 0) {
+                    return res.status(400).json({ error: `OR Code "${cleanOr}" has already been used for another transaction.` });
+                }
+                proceedUpdate(cleanOr);
+            });
+        } else {
+            proceedUpdate(null);
+        }
     });
 });
 // GET: Fetch all data needed to print a specific document
