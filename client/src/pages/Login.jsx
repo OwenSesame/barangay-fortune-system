@@ -20,6 +20,7 @@ export default function Login() {
       const userId = response.data.id;
 
       // Store basic auth info
+      localStorage.setItem('token', response.data.token);
       localStorage.setItem('userId', userId);
       localStorage.setItem('userRole', userRole);
 
