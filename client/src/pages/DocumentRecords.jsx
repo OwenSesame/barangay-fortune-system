@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import ReceiptModal from '../components/ReceiptModal';
 
 export default function DocumentRecords() {
   const navigate = useNavigate();
@@ -12,6 +13,10 @@ export default function DocumentRecords() {
   
   // FIX: Added the counts state!
   const [counts, setCounts] = useState({ pending: 0, ready: 0 });
+
+  // Receipt Modal State
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptRequestId, setReceiptRequestId] = useState(null);
 
   useEffect(() => {
     const fetchDataAndSync = async () => {
@@ -153,17 +158,35 @@ export default function DocumentRecords() {
                     </span>
                   </td>
                   <td style={{ padding: '15px 25px', color: '#64748b', fontSize: '13px', fontWeight: 'bold' }}>
-                    {rec.or_number ? `OR# ${rec.or_number}` : '-'}
+                    {rec.or_number ? (
+                      <button 
+                        onClick={() => {
+                          setReceiptRequestId(rec.request_id);
+                          setShowReceipt(true);
+                        }}
+                        style={{ padding: '5px 10px', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                        title="Click to view/print receipt"
+                      >
+                        📄 {rec.or_number}
+                      </button>
+                    ) : '-'}
                   </td>
                   <td style={{ padding: '15px 25px', color: '#64748b', fontSize: '13px' }}>ID: #{rec.processed_by || 'N/A'}</td>
                 </tr>
               )) : (
-                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No records found matching your search.</td></tr>
+                <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No records found matching your search.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      <ReceiptModal 
+        isOpen={showReceipt}
+        onClose={() => setShowReceipt(false)}
+        requestId={receiptRequestId}
+        mode="audit"
+      />
     </div>
   );
 }

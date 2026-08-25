@@ -176,7 +176,7 @@ export default function AuditLogs() {
                   </td>
                   <td style={{ padding: '15px 20px', color: '#475569', fontSize: '14px', lineHeight: '1.6', wordBreak: 'break-word' }}>
                     {log.details}
-                    {log.details.includes('with OR #') && (
+                    {log.details.includes('OR #') && (
                       <div style={{ marginTop: '10px' }}>
                         <button 
                           onClick={() => {
@@ -188,7 +188,7 @@ export default function AuditLogs() {
                           }}
                           style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
                         >
-                          👁️ View Receipt
+                          👁️ View Receipt Slip
                         </button>
                       </div>
                     )}

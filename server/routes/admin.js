@@ -5,8 +5,13 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 import transporter from '../utils/mailer.js';
+import { verifyToken, requireRole } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+// Apply JWT verification and Admin-only RBAC to all routes in this file
+router.use(verifyToken);
+router.use(requireRole(['Admin']));
 
 // HELPER: Record an action in the audits_logstable
 const recordLog = (adminId, action, details) => {
@@ -96,7 +101,7 @@ router.get('/accounts', (req, res) => {
 // PUT: Update Account Details and Record in Audit Log
 router.put('/accounts/update', (req, res) => {
     const { id, account_type, full_name, first_name, last_name, contact_number, email_address } = req.body;
-    const adminId = 5; // Replace with req.user.id
+    const adminId = req.user.id; 
     
     // Determine the name for the log entry
     const targetName = account_type === 'official' ? full_name : `${first_name} ${last_name}`;
@@ -125,7 +130,7 @@ router.put('/accounts/update', (req, res) => {
 // ARCHIVE: Soft Delete an Account
 router.put('/accounts/archive', (req, res) => {
     const { id, account_type } = req.body;
-    const adminId = 5; // Replace with req.user.id
+    const adminId = req.user.id;
 
     if (account_type === 'official') {
         // Staff don't have transaction histories tied to them directly in the same way, so hard delete is fine.
@@ -219,7 +224,7 @@ router.post('/create-staff', async (req, res) => {
 router.put('/staff/:id/toggle-access', (req, res) => {
     const { can_review } = req.body;
     const staffId = req.params.id;
-    const adminId = 5; // Replace this with req.user.id if you have auth middleware
+    const adminId = req.user.id; 
     const accessStatus = can_review === 1 ? "GRANTED" : "REVOKED";
 
     const sql = "UPDATE barangay_officialstable SET can_review = ? WHERE official_id = ?";
@@ -237,7 +242,7 @@ router.put('/staff/:id/toggle-access', (req, res) => {
 router.put('/staff/:id/toggle-status', (req, res) => {
     const { status } = req.body;
     const staffId = req.params.id;
-    const adminId = 5; 
+    const adminId = req.user.id; 
 
     const sql = "UPDATE barangay_officialstable SET account_status = ? WHERE official_id = ?";
     db.query(sql, [status, staffId], (err) => {
@@ -253,7 +258,7 @@ router.put('/staff/:id/toggle-status', (req, res) => {
 // PUT: Set Staff as Captain
 router.put('/staff/:id/toggle-captain', (req, res) => {
     const staffId = req.params.id;
-    const adminId = 5; 
+    const adminId = req.user.id; 
 
     // 1. Reset everyone to NOT captain
     db.query("UPDATE barangay_officialstable SET is_captain = 0", (err) => {
@@ -304,7 +309,7 @@ router.get('/pending-residents', (req, res) => {
 // PUT: Approve a resident
 router.put('/approve-resident/:id', (req, res) => {
     const residentId = req.params.id;
-    const adminId = 5; // Assuming fixed admin for now
+    const adminId = req.user.id; 
 
     db.query("UPDATE resident_profiletable SET account_status = 'Active' WHERE resident_id = ?", [residentId], (err, updateRes) => {
         if (err) return res.status(500).json({ error: "Database error" });
@@ -333,7 +338,7 @@ router.put('/approve-resident/:id', (req, res) => {
 router.put('/reject-resident/:id', (req, res) => {
     const residentId = req.params.id;
     const { reason } = req.body;
-    const adminId = 5; 
+    const adminId = req.user.id; 
 
     // 1. Fetch email and ID image
     db.query("SELECT email_address, first_name, id_proof_image FROM resident_profiletable WHERE resident_id = ?", [residentId], (err2, results) => {

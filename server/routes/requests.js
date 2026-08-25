@@ -3,6 +3,8 @@ import db from '../db.js'; // Adjust path if your db connection is elsewhere
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { verifyToken, requireRole } from '../middleware/authMiddleware.js';
+import { processIDPhoto } from '../utils/imageProcessor.js';
 
 const router = express.Router();
 
@@ -118,26 +120,51 @@ router.get('/available-dates', (req, res) => {
     });
 });
 
-// POST: Submit a new document application WITH a requirement file
-router.post('/submit', upload.single('requirement_file'), (req, res) => {
-    const { resident_id, doc_type_id, purpose, scheduled_date } = req.body;
-    const requirement_file = req.file ? req.file.path.replace('\\', '/') : null;
+const requestLocks = new Set(); // In-memory mutex for BR4 Anti-Spam
 
-    // FEATURE 4: Anti-Spam Duplicate Prevention
+// POST: Submit a new document application WITH a requirement file
+router.post('/submit', verifyToken, requireRole(['Resident']), upload.single('requirement_file'), async (req, res) => {
+    const { doc_type_id, purpose, scheduled_date } = req.body;
+    const resident_id = req.user.id;
+    let requirement_file = req.file ? req.file.path.replace('\\', '/') : null;
+    
+    // FEATURE 14: Process the uploaded photo asynchronously
+    if (requirement_file) {
+        requirement_file = await processIDPhoto(requirement_file);
+    }
+
+    // Mutex Lock Check (Prevents race conditions if Resident spams the submit button)
+    const lockKey = `${resident_id}_${doc_type_id}`;
+    if (requestLocks.has(lockKey)) {
+        return res.status(429).json({ error: "Anti-Spam Alert: Your previous request is still processing. Please wait." });
+    }
+    requestLocks.add(lockKey); // Lock it!
+
+    const unlock = () => requestLocks.delete(lockKey); // Helper to unlock
+
+    // FEATURE 4: Anti-Spam Duplicate Prevention (Database verification)
     const duplicateCheckSql = `
         SELECT request_id FROM Document_RequestTable 
         WHERE resident_id = ? AND doc_type_id = ? AND status IN ('Pending', 'Waiting for Printing', 'Ready for Pickup')
     `;
     db.query(duplicateCheckSql, [resident_id, doc_type_id], (dupErr, dupRes) => {
-        if (dupErr) return res.status(500).json({ error: "Database error during spam check." });
+        if (dupErr) {
+            unlock();
+            return res.status(500).json({ error: "Database error during spam check." });
+        }
         if (dupRes.length > 0) {
+            unlock();
             return res.status(403).json({ error: "Anti-Spam Alert: You already have an active request for this document type in the queue!" });
         }
 
-        if (!scheduled_date) return res.status(400).json({ error: "Please select an appointment date." });
+        if (!scheduled_date) {
+            unlock();
+            return res.status(400).json({ error: "Please select an appointment date." });
+        }
 
     const requestedDateObj = new Date(scheduled_date);
     if (requestedDateObj.getDay() === 0) {
+        unlock();
         return res.status(403).json({ error: "The Barangay is closed on Sundays. Please select a valid date." });
     }
     const dayName = requestedDateObj.toLocaleDateString('en-US', { weekday: 'long' });
@@ -149,14 +176,20 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
         WHERE res.resident_id = ? AND doc.doc_type_id = ?
     `;
     db.query(fetchNamesSql, [doc_type_id, resident_id], (err, nameRes) => {
-        if (err) return res.status(500).json({ error: "Database error." });
+        if (err) {
+            unlock();
+            return res.status(500).json({ error: "Database error." });
+        }
         
         const residentName = nameRes.length > 0 ? `${nameRes[0].first_name} ${nameRes[0].last_name}` : 'Unknown Resident';
         const documentName = nameRes.length > 0 ? nameRes[0].doc_name : 'Unknown Document';
 
         // Fetch the limits
         db.query(`SELECT setting_value FROM system_settingstable WHERE setting_key = 'DEFAULT_DAILY_LIMIT'`, (limitErr, limitRes) => {
-            if (limitErr) return res.status(500).json({ error: "Database error." });
+            if (limitErr) {
+                unlock();
+                return res.status(500).json({ error: "Database error." });
+            }
             
             let defaultLimit = 50;
             if (limitRes.length > 0) {
@@ -164,7 +197,10 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
             }
 
             db.query(`SELECT document_limit FROM Date_Specific_LimitsTable WHERE specific_date = ?`, [scheduled_date], (specErr, specRes) => {
-                if (specErr) return res.status(500).json({ error: "Database error." });
+                if (specErr) {
+                    unlock();
+                    return res.status(500).json({ error: "Database error." });
+                }
                 
                 let dayLimit = defaultLimit;
                 if (specRes.length > 0) {
@@ -175,12 +211,16 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
             const countSql = `SELECT COUNT(*) as totalScheduled FROM Document_RequestTable WHERE pick_up_date = ? AND status NOT IN ('Cancelled', 'Rejected')`;
             
             db.query(countSql, [scheduled_date], (countErr, countResult) => {
-                if (countErr) return res.status(500).json({ error: "Failed to generate queue number." });
+                if (countErr) {
+                    unlock();
+                    return res.status(500).json({ error: "Failed to generate queue number." });
+                }
 
                 const count = countResult.length > 0 ? Object.values(countResult[0])[0] : 0;
                 
                 // ENFORCE DAILY LIMIT
                 if (dayLimit > 0 && count >= dayLimit) {
+                    unlock();
                     return res.status(403).json({ error: `The queue for ${dayName}s is currently limited to ${dayLimit} and is already full. Please select another date.` });
                 }
 
@@ -190,7 +230,10 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
                 const sql = `INSERT INTO Document_RequestTable (resident_id, doc_type_id, purpose, requirement_file, status, pick_up_date) VALUES (?, ?, ?, ?, 'Pending', ?)`;
                 
                 db.query(sql, [resident_id, doc_type_id, purpose, requirement_file, scheduled_date], (err, result) => {
-                    if (err) return res.status(500).json({ error: "Failed to save request." });
+                    if (err) {
+                        unlock();
+                        return res.status(500).json({ error: "Failed to save request." });
+                    }
 
                     const requestId = result.insertId;
                     const queueSql = `INSERT INTO Queue_ManagementTable (request_id, daily_sequence_no) VALUES (?, ?)`;
@@ -201,6 +244,7 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
                         const logSql = `INSERT INTO Audit_LogsTable (user_id, action_type, action_details) VALUES (?, ?, ?)`;
                         const logDetails = `Resident ${residentName} requested a ${documentName} for ${scheduled_date} (Request #${requestId})`;
                         db.query(logSql, [0, 'Document Requested', logDetails], () => {
+                            unlock();
                             res.json({ message: "Application submitted successfully", queue_number: queueNumber });
                         });
                     });
@@ -213,38 +257,39 @@ router.post('/submit', upload.single('requirement_file'), (req, res) => {
 });
 
 // GET: Fetch the latest request for the dashboard
-router.get('/latest/:residentId', (req, res) => {
+router.get('/latest/:residentId', verifyToken, requireRole(['Resident']), (req, res) => {
     const sql = `
-        SELECT r.request_id, r.status as request_status, q.daily_sequence_no, r.pick_up_date as scheduled_date
+        SELECT r.request_id, r.status as request_status, r.or_number, q.daily_sequence_no, r.pick_up_date as scheduled_date, doc.doc_name, doc.base_fee
         FROM Document_RequestTable r
+        JOIN Document_TemplateTable doc ON r.doc_type_id = doc.doc_type_id
         JOIN Queue_ManagementTable q ON r.request_id = q.request_id
         WHERE r.resident_id = ? 
         ORDER BY r.date_requested DESC LIMIT 1
     `;
-    db.query(sql, [req.params.residentId], (err, results) => {
+    db.query(sql, [req.user.id], (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });
         res.json(results[0] || {});
     });
 });
 
 // GET: Fetch the complete history of requests for a resident
-router.get('/history/:residentId', (req, res) => {
+router.get('/history/:residentId', verifyToken, requireRole(['Resident']), (req, res) => {
     const sql = `
-        SELECT r.request_id, doc.doc_name, r.date_requested, r.status, r.remarks, q.daily_sequence_no 
+        SELECT r.request_id, doc.doc_name, doc.base_fee, r.date_requested, r.status, r.remarks, r.or_number, q.daily_sequence_no 
         FROM Document_RequestTable r
         JOIN Document_TemplateTable doc ON r.doc_type_id = doc.doc_type_id
         LEFT JOIN Queue_ManagementTable q ON r.request_id = q.request_id
         WHERE r.resident_id = ? 
         ORDER BY r.date_requested DESC
     `;
-    db.query(sql, [req.params.residentId], (err, results) => {
+    db.query(sql, [req.user.id], (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });
         res.json(results);
     });
 });
 
 // PUT: Cancel a pending request
-router.put('/cancel/:id', (req, res) => {
+router.put('/cancel/:id', verifyToken, requireRole(['Resident']), (req, res) => {
     // 1. Fetch the requirement_file first
     db.query(`SELECT requirement_file FROM Document_RequestTable WHERE request_id = ?`, [req.params.id], (fetchErr, fetchRes) => {
         if (fetchErr) return res.status(500).json({ error: "Database error" });

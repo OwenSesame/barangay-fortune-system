@@ -15,6 +15,8 @@ export default function DocumentRequest() {
   const [scheduledDate, setScheduledDate] = useState('');
   const [requirementFile, setRequirementFile] = useState(null);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     // Check if logged in
     const myId = localStorage.getItem('userId');
@@ -39,6 +41,8 @@ export default function DocumentRequest() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return; // Prevent double clicks
+    
     if (!docType) return toast.error("Please select a document type.");
     if (!scheduledDate) return toast.error("Please select an appointment date.");
     
@@ -58,6 +62,8 @@ export default function DocumentRequest() {
     formData.append('scheduled_date', scheduledDate);
     formData.append('requirement_file', requirementFile);
 
+    setIsSubmitting(true);
+
     try {
       const response = await axios.post('http://localhost:5000/api/requests/submit', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -67,7 +73,13 @@ export default function DocumentRequest() {
       navigate('/resident-dashboard');
       
     } catch (error) {
-      toast.error("Error submitting application. Please try again.");
+      if (error.response && error.response.status === 403) {
+        toast.error(error.response.data.error || "Anti-Spam Alert: Active request already exists.");
+      } else {
+        toast.error("Error submitting application. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -172,8 +184,23 @@ export default function DocumentRequest() {
               return null;
             })()}
 
-            <button type="submit" style={{ width: '100%', padding: '14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', marginTop: '10px' }}>
-              Submit Application
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              style={{ 
+                width: '100%', 
+                padding: '14px', 
+                background: isSubmitting ? '#94a3b8' : '#2563eb', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '6px', 
+                fontSize: '16px', 
+                fontWeight: '600', 
+                cursor: isSubmitting ? 'not-allowed' : 'pointer', 
+                marginTop: '10px' 
+              }}
+            >
+              {isSubmitting ? 'Submitting... Please Wait' : 'Submit Application'}
             </button>
           </form>
 

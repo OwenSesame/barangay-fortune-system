@@ -3,27 +3,46 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Upgrade to createPool instead of createConnection
-const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10, // Allows up to 10 simultaneous database connections
-    queueLimit: 0
-});
+let db;
 
-// Test the pool connection to ensure it works on startup
-db.getConnection((err, connection) => {
-    if (err) {
-        console.error('Error connecting to the database:', err.message);
-        return;
-    }
-    if (connection) {
-        connection.release();
-        console.log('Connected to MySQL Database with a Connection Pool!');
-    }
-});
+if (process.env.NODE_ENV === 'test') {
+    // Inject a mock database pool for testing
+    db = {
+        query: (sql, params, callback) => {
+            // If callback isn't provided (e.g. some queries just use (sql, callback))
+            const cb = typeof params === 'function' ? params : callback;
+            if (cb) cb(null, []);
+        },
+        getConnection: (cb) => {
+            cb(null, { release: () => {} });
+        },
+        // A property to let tests override query behavior dynamically
+        mockQuery: function (implementation) {
+            this.query = implementation;
+        }
+    };
+} else {
+    // Real MySQL Connection Pool
+    db = mysql.createPool({
+        host: process.env.DB_HOST,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+    });
+
+    db.getConnection((err, connection) => {
+        if (err) {
+            console.error('Error connecting to the database:', err.message);
+            return;
+        }
+        if (connection) {
+            connection.release();
+            console.log('Connected to MySQL Database with a Connection Pool!');
+        }
+    });
+}
 
 export default db;

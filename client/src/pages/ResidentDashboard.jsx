@@ -7,25 +7,19 @@ import ResidentBottomNav from '../components/ResidentBottomNav';
 export default function ResidentDashboard() {
   const navigate = useNavigate();
   
-  const [queueInfo, setQueueInfo] = useState({ queueNumber: '--', status: 'Pending', scheduledDate: null });
+  const [queueInfo, setQueueInfo] = useState({ queueNumber: '--', status: 'Pending', scheduledDate: null, or_number: null, base_fee: 0, doc_name: '' });
   const [history, setHistory] = useState([]);
 
   // --- UPGRADED: Translation with Fail-Safes ---
-  const getDisplayStatus = (dbStatus) => {
+  const getDisplayStatus = (dbStatus, orNumber) => {
     // If the database sends "undefined" or nothing, default to Pending
     if (!dbStatus || dbStatus === 'undefined') return 'Pending'; 
     if (dbStatus === 'Waiting for Printing') return 'Waiting for Printing';
-    if (dbStatus === 'Ready for Pickup') return 'Ready for Pickup at Brgy. Hall';
+    if (dbStatus === 'Ready for Pickup') {
+      return orNumber ? 'Ready for Pickup (Paid)' : 'Ready for Pickup (Unpaid)';
+    }
     if (dbStatus === 'Released') return 'Completed / Picked Up';
     return dbStatus;
-  };
-
-  // Deterministic randomizer for OR code based on request ID
-  const generateORCode = (id) => {
-    if (!id) return '';
-    const salt = 83721;
-    const val = (parseInt(id) * salt).toString(16).toUpperCase();
-    return `OR-${val.padStart(6, 'X')}`;
   };
 
   const fetchMyData = useCallback(async () => {
@@ -37,10 +31,12 @@ export default function ResidentDashboard() {
       if (queueResponse.data && queueResponse.data.daily_sequence_no) {
         setQueueInfo({
           queueNumber: queueResponse.data.daily_sequence_no,
-          // Add a fallback in case the database column is empty
           status: queueResponse.data.request_status || 'Pending',
           scheduledDate: queueResponse.data.scheduled_date,
-          requestId: queueResponse.data.request_id
+          requestId: queueResponse.data.request_id,
+          or_number: queueResponse.data.or_number,
+          base_fee: queueResponse.data.base_fee,
+          doc_name: queueResponse.data.doc_name
         });
       }
 
@@ -66,7 +62,6 @@ export default function ResidentDashboard() {
       toast.success("Application Cancelled Successfully.");
       fetchMyData(); // Refresh the table
     } catch (error) {
-      // NEW: This will now display the exact error message from the backend!
       const errorMsg = error.response?.data?.error || "Error cancelling request.";
       toast.error(errorMsg);
     }
@@ -109,18 +104,31 @@ export default function ResidentDashboard() {
             )}
           </div>
           
-          <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', 
+          <div style={{ flex: 1.2, background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', 
             borderLeft: queueInfo.status === 'Ready for Pickup' ? '5px solid #10b981' : queueInfo.status === 'Released' ? '5px solid #3b82f6' : queueInfo.status === 'Cancelled' ? '5px solid #ef4444' : queueInfo.status === 'Waiting for Printing' ? '5px solid #f59e0b' : '5px solid #f59e0b' }}>
             <h4 style={{ color: '#6b7280', margin: '0 0 10px 0', textTransform: 'uppercase', fontSize: '12px' }}>Latest Status</h4>
             <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0 0 0', 
               color: queueInfo.status === 'Ready for Pickup' ? '#10b981' : queueInfo.status === 'Released' ? '#3b82f6' : queueInfo.status === 'Cancelled' ? '#ef4444' : queueInfo.status === 'Waiting for Printing' ? '#f59e0b' : '#f59e0b' }}>
-              {getDisplayStatus(queueInfo.status)}
+              {getDisplayStatus(queueInfo.status, queueInfo.or_number)}
             </h2>
-            {queueInfo.status === 'Ready for Pickup' && queueInfo.requestId && (
-                <div style={{ marginTop: '15px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
-                    <p style={{ margin: '0 0 5px 0', fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>Provide this code to staff</p>
-                    <p style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: '#10b981', letterSpacing: '2px' }}>{generateORCode(queueInfo.requestId)}</p>
-                </div>
+
+            {/* If Ready for Pickup & NOT paid yet */}
+            {queueInfo.status === 'Ready for Pickup' && !queueInfo.or_number && (
+              <div style={{ marginTop: '15px', padding: '12px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a' }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: '12px', fontWeight: 'bold', color: '#b45309' }}>💳 Payment Required</p>
+                <p style={{ margin: 0, fontSize: '12px', color: '#78350f' }}>
+                  Please proceed to the Barangay Hall Cashier with your Queue Number (<b>{queueInfo.queueNumber}</b>) to pay the fee (<b>₱{queueInfo.base_fee || 0}</b>) and obtain your Official Receipt.
+                </p>
+              </div>
+            )}
+
+            {/* If Ready for Pickup & ALREADY paid */}
+            {queueInfo.status === 'Ready for Pickup' && queueInfo.or_number && (
+              <div style={{ marginTop: '15px', padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#166534', textTransform: 'uppercase', fontWeight: 'bold' }}>Official Receipt Issued</p>
+                <p style={{ margin: 0, fontSize: '22px', fontWeight: 'bold', color: '#15803d', letterSpacing: '1px' }}>{queueInfo.or_number}</p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#166534' }}>Present this OR code to the releasing officer to claim your document.</p>
+              </div>
             )}
           </div>
           
@@ -143,6 +151,7 @@ export default function ResidentDashboard() {
                 <th style={{ padding: '15px 25px' }}>Requested</th>
                 <th style={{ padding: '15px 25px' }}>Pick-up Date</th>
                 <th style={{ padding: '15px 25px' }}>Document Type</th>
+                <th style={{ padding: '15px 25px' }}>Payment / OR #</th>
                 <th style={{ padding: '15px 25px' }}>Status</th>
                 <th style={{ padding: '15px 25px' }}>Action</th>
               </tr>
@@ -150,7 +159,6 @@ export default function ResidentDashboard() {
             <tbody>
               {history.length > 0 ? (
                 history.map((req) => {
-                  // We extract the variables cleanly here so we can fail-safe them!
                   const safeDocName = req.doc_name === 'undefined' ? 'Official Document' : req.doc_name;
                   const rawStatus = (!req.status || req.status === 'undefined') ? 'Pending' : req.status;
 
@@ -158,17 +166,26 @@ export default function ResidentDashboard() {
                     <tr key={req.request_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '15px 25px', color: '#64748b', fontSize: '14px' }}>{new Date(req.date_requested).toLocaleDateString()}</td>
                       <td style={{ padding: '15px 25px', color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>{req.pick_up_date ? new Date(req.pick_up_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</td>
-                      
-                      {/* Using the safe document name */}
-                      <td style={{ padding: '15px 25px', fontWeight: '500', color: '#1e293b' }}>{safeDocName}</td>
-                      
+                      <td style={{ padding: '15px 25px', fontWeight: '500', color: '#1e293b' }}>
+                        {safeDocName}
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>Fee: ₱{req.base_fee || 0}</div>
+                      </td>
+                      <td style={{ padding: '15px 25px' }}>
+                        {req.or_number ? (
+                          <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', background: '#dcfce7', color: '#15803d' }}>
+                            OR: {req.or_number}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>--</span>
+                        )}
+                      </td>
                       <td style={{ padding: '15px 25px' }}>
                       <span style={{
                         padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
                         background: rawStatus === 'Ready for Pickup' ? '#dcfce7' : rawStatus === 'Released' ? '#dbeafe' : rawStatus === 'Cancelled' ? '#fee2e2' : rawStatus === 'Rejected' ? '#fee2e2' : rawStatus === 'Waiting for Printing' ? '#fef08a' : '#fef08a',
                         color: rawStatus === 'Ready for Pickup' ? '#166534' : rawStatus === 'Released' ? '#1e40af' : rawStatus === 'Cancelled' ? '#991b1b' : rawStatus === 'Rejected' ? '#991b1b' : rawStatus === 'Waiting for Printing' ? '#854d0e' : '#854d0e'
                       }}>
-                        {getDisplayStatus(rawStatus)}
+                        {getDisplayStatus(rawStatus, req.or_number)}
                       </span>
                       
                       {/* NEW: Display the Staff's reason for rejection */}

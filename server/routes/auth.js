@@ -7,6 +7,8 @@ import crypto from 'crypto';
 import transporter from '../utils/mailer.js';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import fs from 'fs';
+import { processIDPhoto } from '../utils/imageProcessor.js';
 
 // RATE LIMITING CONFIGURATION (Feature 1)
 const loginLimiter = rateLimit({
@@ -57,27 +59,48 @@ router.post('/register', upload.single('id_proof'), async (req, res) => {
     const { firstName, lastName, middleName, dateOfBirth, civilStatus, address, contactNumber, email, password } = req.body;
 
     // Catch the image path if a file was uploaded
-    const idProofImage = req.file ? req.file.path : null;
-
-    try {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        // Added id_proof_image and account_status to the SQL query
-        const sql = `INSERT INTO Resident_ProfileTable 
-        (first_name, last_name, middle_name, date_of_birth, civil_status, addres_street, contact_number, email_address, password_hash, id_proof_image, account_status) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-        db.query(sql, [firstName, lastName, middleName, dateOfBirth, civilStatus, address, contactNumber, email, hashedPassword, idProofImage, 'Pending'], (err, result) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ error: "Database error or email exists." });
-            }
-            res.status(201).json({ message: "Resident registered successfully with ID!" });
-        });
-    } catch (error) {
-        res.status(500).json({ error: "Server error" });
+    let idProofImage = req.file ? req.file.path : null;
+    
+    // FEATURE 14: Process the uploaded photo asynchronously
+    if (idProofImage) {
+        idProofImage = await processIDPhoto(idProofImage);
     }
+
+    // FEATURE/BR19: Explicit Duplicate Email Verification
+    const checkEmailSql = `SELECT resident_id FROM Resident_ProfileTable WHERE email_address = ?`;
+    db.query(checkEmailSql, [email], async (checkErr, checkRes) => {
+        if (checkErr) {
+            if (idProofImage) fs.unlink(path.join(process.cwd(), idProofImage), () => {});
+            return res.status(500).json({ error: "Database error during email validation." });
+        }
+        
+        if (checkRes.length > 0) {
+            if (idProofImage) fs.unlink(path.join(process.cwd(), idProofImage), () => {});
+            return res.status(409).json({ error: "This email address is already registered. Please log in or reset your password." });
+        }
+
+        try {
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+
+            // Added id_proof_image and account_status to the SQL query
+            const sql = `INSERT INTO Resident_ProfileTable 
+            (first_name, last_name, middle_name, date_of_birth, civil_status, addres_street, contact_number, email_address, password_hash, id_proof_image, account_status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+            db.query(sql, [firstName, lastName, middleName, dateOfBirth, civilStatus, address, contactNumber, email, hashedPassword, idProofImage, 'Pending'], (err, result) => {
+                if (err) {
+                    console.error(err);
+                    if (idProofImage) fs.unlink(path.join(process.cwd(), idProofImage), () => {});
+                    return res.status(500).json({ error: "Database error or email exists." });
+                }
+                res.status(201).json({ message: "Resident registered successfully with ID!" });
+            });
+        } catch (error) {
+            if (idProofImage) fs.unlink(path.join(process.cwd(), idProofImage), () => {});
+            res.status(500).json({ error: "Server error" });
+        }
+    });
 });
 
 // LOGIN ROUTE (For all 3 roles) - Protected by Rate Limiter
