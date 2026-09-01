@@ -11,16 +11,21 @@ const toast = useToast()
 const availableDocs = ref([])
 const availableDates = ref([])
 
-const docType = ref('')
-const purpose = ref('')
-const scheduledDate = ref('')
+const form = ref({
+  docType: '',
+  purpose: '',
+  scheduledDate: '',
+  requestForOthers: false,
+  requestedForName: ''
+})
 const requirementFile = ref(null)
+const authorizationProof = ref(null)
 const requirementPreviewUrl = ref(null)
 const isSubmitting = ref(false)
 const fileInput = ref(null)
 
 onBeforeRouteLeave((to, from, next) => {
-  if ((docType.value || purpose.value || scheduledDate.value || requirementFile.value) && !isSubmitting.value) {
+  if ((form.value.docType || form.value.purpose || form.value.scheduledDate || requirementFile.value) && !isSubmitting.value) {
     const answer = window.confirm('You have unsaved changes. Are you sure you want to leave?')
     if (answer) {
       next()
@@ -49,44 +54,26 @@ onMounted(async () => {
 })
 
 const selectedDocRequiresAttachment = computed(() => {
-  if (!docType.value) return false
+  if (!form.value.docType) return false
   const selectedDocObj = availableDocs.value.find(d => 
-    d.doc_type_id === parseInt(docType.value, 10) || d.doc_type_id === docType.value
+    d.doc_type_id === parseInt(form.value.docType, 10) || d.doc_type_id === form.value.docType
   )
   return selectedDocObj ? selectedDocObj.requires_attachment === 1 : false
 })
 
-const handleFileChange = (event) => {
-  if (event.target.files.length > 0) {
-    const file = event.target.files[0]
-    
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size exceeds 5MB limit.")
-      event.target.value = ''
-      requirementFile.value = null
-      requirementPreviewUrl.value = null
-      return
-    }
+const handleRequirementChange = (e) => {
+  requirementFile.value = e.target.files[0]
+}
 
-    requirementFile.value = file
-    
-    // Generate preview
-    if (requirementPreviewUrl.value) {
-      URL.revokeObjectURL(requirementPreviewUrl.value)
-    }
-    requirementPreviewUrl.value = URL.createObjectURL(file)
-
-  } else {
-    requirementFile.value = null
-    requirementPreviewUrl.value = null
-  }
+const handleAuthorizationChange = (e) => {
+  authorizationProof.value = e.target.files[0]
 }
 
 const handleSubmit = async () => {
   if (isSubmitting.value) return
   
-  if (!docType.value) return toast.error("Please select a document type.")
-  if (!scheduledDate.value) return toast.error("Please select an appointment date.")
+  if (!form.value.docType) return toast.error("Please select a document type.")
+  if (!form.value.scheduledDate) return toast.error("Please select an appointment date.")
   
   if (selectedDocRequiresAttachment.value && !requirementFile.value) {
     return toast.error("Please upload the required document/ID.")
@@ -96,12 +83,19 @@ const handleSubmit = async () => {
   const formData = new FormData()
   
   formData.append('resident_id', myId)
-  formData.append('doc_type_id', docType.value)
-  formData.append('purpose', purpose.value)
-  formData.append('scheduled_date', scheduledDate.value)
+  formData.append('doc_type_id', form.value.docType)
+  formData.append('purpose', form.value.purpose)
+  formData.append('scheduled_date', form.value.scheduledDate)
+  formData.append('requested_for_others', form.value.requestForOthers)
+  if (form.value.requestForOthers && form.value.requestedForName) {
+    formData.append('requested_for_name', form.value.requestedForName)
+  }
   
   if (requirementFile.value) {
     formData.append('requirement_file', requirementFile.value)
+  }
+  if (form.value.requestForOthers && authorizationProof.value) {
+    formData.append('authorization_proof', authorizationProof.value)
   }
 
   isSubmitting.value = true
@@ -113,10 +107,9 @@ const handleSubmit = async () => {
 
     toast.success(`Success! Your Queue Number is: ${response.data.queue_number}`)
     // Reset state before pushing to prevent route guard block
-    docType.value = ''
-    purpose.value = ''
-    scheduledDate.value = ''
+    form.value = { docType: '', purpose: '', scheduledDate: '', requestForOthers: false, requestedForName: '' }
     requirementFile.value = null
+    authorizationProof.value = null
     router.push('/resident-dashboard')
   } catch (error) {
     if (error.response && error.response.status === 403) {
@@ -146,7 +139,7 @@ const handleSubmit = async () => {
           <div>
             <label class="block mb-2 text-gray-700 font-bold text-sm">Document Type</label>
             <select 
-              v-model="docType" 
+              v-model="form.docType" 
               class="w-full p-3 rounded-lg border border-gray-300 bg-gray-50 text-base outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-colors"
               required
             >
@@ -160,7 +153,7 @@ const handleSubmit = async () => {
           <div>
             <label class="block mb-2 text-gray-700 font-bold text-sm">Select Appointment Date</label>
             <select 
-              v-model="scheduledDate" 
+              v-model="form.scheduledDate" 
               class="w-full p-3 rounded-lg border border-gray-300 bg-gray-50 text-base outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-colors"
               required
             >
@@ -182,7 +175,7 @@ const handleSubmit = async () => {
             <input 
               type="text" 
               placeholder="e.g., Employment, School Requirement, Travel" 
-              v-model="purpose" 
+              v-model="form.purpose" 
               required 
               class="w-full p-3 rounded-lg border border-gray-300 text-base outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-colors placeholder-gray-400"
             />
@@ -193,20 +186,36 @@ const handleSubmit = async () => {
             <input 
               type="file" 
               accept="image/*,.pdf" 
-              @change="handleFileChange"
+              @change="handleRequirementChange"
               required 
               class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-blue file:text-white hover:file:bg-brand-light-blue cursor-pointer"
             />
+          </div>
+          
+          <div class="mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+              Document Requirements
+            </h3>
             
-            <div v-if="requirementPreviewUrl" class="mt-4">
-              <p class="text-xs text-gray-500 font-bold mb-2 uppercase">File Preview</p>
-              <img v-if="requirementFile.type.startsWith('image/')" :src="requirementPreviewUrl" class="w-full max-h-48 object-contain rounded-lg border border-gray-300 bg-gray-100" />
-              <embed v-else-if="requirementFile.type === 'application/pdf'" :src="requirementPreviewUrl" type="application/pdf" class="w-full h-48 rounded-lg border border-gray-300" />
+            <div class="mb-6 pb-6 border-b border-gray-100">
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" v-model="form.requestForOthers" class="w-5 h-5 text-brand-blue rounded border-gray-300 focus:ring-brand-blue transition-colors" />
+                <span class="text-gray-700 font-semibold">I am requesting this on behalf of someone else</span>
+              </label>
+              
+              <div v-if="form.requestForOthers" class="mt-4 space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Full Name of Person</label>
+                  <input type="text" v-model="form.requestedForName" required placeholder="Enter the name of the person this is for" class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-blue outline-none bg-white" />
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Proof of Authorization</label>
+                  <p class="text-xs text-gray-500 mb-2">Please upload a valid ID of the person, a Birth Certificate, or an Authorization Letter proving your relationship.</p>
+                  <input type="file" @change="handleAuthorizationChange" required accept="image/*,.pdf" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
+                </div>
+              </div>
             </div>
-
-            <p class="text-xs text-gray-500 mt-3 mb-0 font-medium">
-              Maximum file size is 5MB. Please provide a clear picture or PDF of the specific requirement needed for this document.
-            </p>
           </div>
 
           <button 

@@ -122,19 +122,29 @@ router.get('/available-dates', (req, res) => {
 
 const requestLocks = new Set(); // In-memory mutex for BR4 Anti-Spam
 
-// POST: Submit a new document application WITH a requirement file
-router.post('/submit', verifyToken, requireRole(['Resident']), upload.single('requirement_file'), async (req, res) => {
-    const { doc_type_id, purpose, scheduled_date } = req.body;
+// POST: Submit a new document application WITH a requirement file and optionally authorization_proof
+router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ name: 'requirement_file', maxCount: 1 }, { name: 'authorization_proof', maxCount: 1 }]), async (req, res) => {
+    const { doc_type_id, purpose, scheduled_date, requested_for_others, requested_for_name } = req.body;
     const resident_id = req.user.id;
-    let requirement_file = req.file ? req.file.path.replace('\\', '/') : null;
+    let requirement_file = (req.files && req.files['requirement_file']) ? req.files['requirement_file'][0].path.replace('\\', '/') : null;
+    let authorization_proof = (req.files && req.files['authorization_proof']) ? req.files['authorization_proof'][0].path.replace('\\', '/') : null;
     
+    const isForOthers = requested_for_others === 'true' || requested_for_others === true || requested_for_others === 1;
+
     // FEATURE 14: Process the uploaded photo asynchronously
     if (requirement_file) {
         requirement_file = await processIDPhoto(requirement_file);
     }
+    if (authorization_proof) {
+        authorization_proof = await processIDPhoto(authorization_proof);
+    }
 
     // Mutex Lock Check (Prevents race conditions if Resident spams the submit button)
-    const lockKey = `${resident_id}_${doc_type_id}`;
+    let lockKey = `${resident_id}_${doc_type_id}`;
+    if (isForOthers && requested_for_name) {
+        lockKey += `_${requested_for_name}`;
+    }
+
     if (requestLocks.has(lockKey)) {
         return res.status(429).json({ error: "Anti-Spam Alert: Your previous request is still processing. Please wait." });
     }
@@ -143,11 +153,20 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.single('re
     const unlock = () => requestLocks.delete(lockKey); // Helper to unlock
 
     // FEATURE 4: Anti-Spam Duplicate Prevention (Database verification)
-    const duplicateCheckSql = `
+    let duplicateCheckSql = `
         SELECT request_id FROM Document_RequestTable 
         WHERE resident_id = ? AND doc_type_id = ? AND status IN ('Pending', 'Waiting for Printing', 'Ready for Pickup')
     `;
-    db.query(duplicateCheckSql, [resident_id, doc_type_id], (dupErr, dupRes) => {
+    let queryParams = [resident_id, doc_type_id];
+
+    if (isForOthers && requested_for_name) {
+        duplicateCheckSql += " AND requested_for_name = ?";
+        queryParams.push(requested_for_name);
+    } else {
+        duplicateCheckSql += " AND (requested_for_others = 0 OR requested_for_others IS NULL)";
+    }
+
+    db.query(duplicateCheckSql, queryParams, (dupErr, dupRes) => {
         if (dupErr) {
             unlock();
             return res.status(500).json({ error: "Database error during spam check." });
@@ -227,9 +246,9 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.single('re
                 let queueNumber = parseInt(count) + 1;
 
                 // Save with the scheduled_date mapped to pick_up_date
-                const sql = `INSERT INTO Document_RequestTable (resident_id, doc_type_id, purpose, requirement_file, status, pick_up_date) VALUES (?, ?, ?, ?, 'Pending', ?)`;
+                const sql = `INSERT INTO Document_RequestTable (resident_id, doc_type_id, purpose, requirement_file, status, pick_up_date, requested_for_others, requested_for_name, authorization_proof) VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?, ?)`;
                 
-                db.query(sql, [resident_id, doc_type_id, purpose, requirement_file, scheduled_date], (err, result) => {
+                db.query(sql, [resident_id, doc_type_id, purpose, requirement_file, scheduled_date, isForOthers, requested_for_name || null, authorization_proof], (err, result) => {
                     if (err) {
                         unlock();
                         return res.status(500).json({ error: "Failed to save request." });
@@ -242,7 +261,8 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.single('re
                         if (qErr) console.error(qErr);
                         
                         const logSql = `INSERT INTO Audit_LogsTable (user_id, action_type, action_details) VALUES (?, ?, ?)`;
-                        const logDetails = `Resident ${residentName} requested a ${documentName} for ${scheduled_date} (Request #${requestId})`;
+                        const targetPerson = isForOthers && requested_for_name ? requested_for_name : residentName;
+                        const logDetails = `Resident ${residentName} requested a ${documentName} for ${targetPerson} for ${scheduled_date} (Request #${requestId})`;
                         db.query(logSql, [0, 'Document Requested', logDetails], () => {
                             unlock();
                             res.json({ message: "Application submitted successfully", queue_number: queueNumber });
