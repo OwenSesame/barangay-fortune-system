@@ -306,7 +306,8 @@ router.post('/forgot-password', (req, res) => {
             }
             
             // 5. Send Email
-            const resetLink = `http://localhost:5173/reset-password/${resetToken}?email=${encodeURIComponent(email)}`;
+            const origin = req.headers.origin || 'http://localhost:5173';
+            const resetLink = `${origin}/reset-password/${resetToken}?email=${encodeURIComponent(email)}`;
             
             const mailOptions = {
                 from: process.env.EMAIL_USER,
