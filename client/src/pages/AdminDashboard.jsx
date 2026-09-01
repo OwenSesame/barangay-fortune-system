@@ -66,55 +66,60 @@ export default function AdminDashboard() {
     navigate('/');
   };
 
-  return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#f8fafc' }}>
-      
-      {/* CSS: The pulsing animation for the red dot */}
-      <style>
-        {`
-          @keyframes pulse-red {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-          }
-          .notification-dot {
-            display: inline-flex; align-items: center; justify-content: center;
-            background: #ef4444; color: white; border-radius: 50%;
-            min-width: 20px; height: 20px; font-size: 11px; font-weight: bold;
-            margin-left: 10px; animation: pulse-red 2s infinite;
-          }
-        `}
-      </style>
+  const neonColors = ['#06b6d4', '#10b981', '#3b82f6', '#8b5cf6', '#f43f5e'];
 
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'transparent' }}>
+      
       {/* Dynamic Auto-Highlighting Sidebar */}
       <AdminSidebar badgeCounts={badgeCounts} />
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, padding: '40px' }}>
+      <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
+        
+        {/* Top Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <h1 style={{ margin: 0, color: '#0f172a', fontSize: '28px' }}>Welcome, Admin!</h1>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '28px', fontWeight: 'bold' }}>Dashboard Overview</h1>
+          <div style={{ display: 'flex', gap: '15px' }}>
+            <div className="glass-panel" style={{ padding: '10px 20px', borderRadius: '12px', color: 'var(--text-muted)', fontSize: '14px' }}>
+               {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+          </div>
         </div>
 
         {/* Top Metric Cards */}
         <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
-          <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, color: '#334155', fontSize: '20px', fontWeight: 'normal' }}>Total<br/><b>Residents</b></h3>
-            <div style={{ padding: '10px 15px', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#475569', fontSize: '14px' }}>
-              Total Registered Residents: <b>{stats.totalResidents}</b>
+          
+          {/* Card 1 */}
+          <div className="glass-card" style={{ flex: 1, padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ margin: '0 0 5px 0', color: 'var(--text-muted)', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Total Registered</p>
+              <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '32px', fontWeight: 'bold' }}>{stats.totalResidents}</h3>
+            </div>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(6, 182, 212, 0.1)', color: 'var(--neon-cyan)', border: '1px solid rgba(6,182,212,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+              👥
             </div>
           </div>
           
-          <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, color: '#334155', fontSize: '20px', fontWeight: 'normal' }}>Active<br/><b>Queue</b></h3>
-            <div style={{ padding: '10px 15px', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#475569', fontSize: '14px' }}>
-              Currently in Queue: <b>{stats.activeQueue}</b>
+          {/* Card 2 */}
+          <div className="glass-card" style={{ flex: 1, padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ margin: '0 0 5px 0', color: 'var(--text-muted)', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Active Queue</p>
+              <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '32px', fontWeight: 'bold' }}>{stats.activeQueue}</h3>
+            </div>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--neon-blue)', border: '1px solid rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+              ⏱️
             </div>
           </div>
 
-          <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, color: '#334155', fontSize: '20px', fontWeight: 'normal' }}>Pending<br/><b>Action</b></h3>
-            <div style={{ padding: '10px 15px', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#475569', fontSize: '14px' }}>
-              Awaiting Approval: <b>{stats.awaitingApproval}</b>
+          {/* Card 3 */}
+          <div className="glass-card" style={{ flex: 1, padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ margin: '0 0 5px 0', color: 'var(--text-muted)', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Awaiting Approval</p>
+              <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '32px', fontWeight: 'bold' }}>{stats.awaitingApproval}</h3>
+            </div>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--neon-green)', border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+              📋
             </div>
           </div>
         </div>
@@ -122,43 +127,53 @@ export default function AdminDashboard() {
         {/* Data Visualization Charts */}
         <div style={{ display: 'flex', gap: '20px' }}>
           
-          {/* Donut Chart */}
-          <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h4 style={{ margin: '0 0 20px 0', color: '#334155', textAlign: 'center' }}>Top Reasons for Barangay Document Requests</h4>
-            <div style={{ height: '300px' }}>
-              {stats.topReasons.length > 0 ? (
+          {/* Bar Chart */}
+          <div className="glass-card" style={{ flex: 2, padding: '30px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px' }}>
+              <span style={{ color: 'var(--neon-blue)', fontSize: '20px', marginRight: '10px' }}>📊</span>
+              <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '18px', fontWeight: '600' }}>Request Types Comparison</h4>
+            </div>
+            <div style={{ height: '350px' }}>
+              {stats.frequentDocs.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={stats.topReasons} innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value">
-                      {stats.topReasons.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <BarChart data={stats.frequentDocs} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
+                    <XAxis dataKey="name" tick={{fontSize: 12, fill: 'var(--text-muted)'}} axisLine={false} tickLine={false} />
+                    <YAxis tick={{fontSize: 12, fill: 'var(--text-muted)'}} axisLine={false} tickLine={false} />
+                    <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                      {stats.frequentDocs.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={neonColors[index % neonColors.length]} />
                       ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Waiting for resident request data...</div>
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>Waiting for request data...</div>
               )}
             </div>
           </div>
 
-          {/* Bar Chart */}
-          <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h4 style={{ margin: '0 0 20px 0', color: '#334155', textAlign: 'center' }}>Most Frequent Barangay Document Requests</h4>
-            <div style={{ height: '300px' }}>
-              {stats.frequentDocs.length > 0 ? (
+          {/* Donut Chart */}
+          <div className="glass-card" style={{ flex: 1, padding: '30px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px' }}>
+              <span style={{ color: 'var(--neon-green)', fontSize: '20px', marginRight: '10px' }}>⭕</span>
+              <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '18px', fontWeight: '600' }}>Request Analytics</h4>
+            </div>
+            <div style={{ height: '350px' }}>
+              {stats.topReasons.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.frequentDocs}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" tick={{fontSize: 12}} interval={0} />
-                    <YAxis />
-                    <Tooltip cursor={{fill: '#f1f5f9'}} />
-                    <Bar dataKey="value" fill="#818cf8" radius={[4, 4, 0, 0]} />
-                  </BarChart>
+                  <PieChart>
+                    <Pie data={stats.topReasons} innerRadius={90} outerRadius={120} paddingAngle={2} dataKey="value" stroke="none">
+                      {stats.topReasons.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={neonColors[index % neonColors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }} />
+                  </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Waiting for resident request data...</div>
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>Waiting for data...</div>
               )}
             </div>
           </div>

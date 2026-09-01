@@ -72,88 +72,111 @@ export default function ResidentDashboard() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-[#f4f7f6] font-sans pb-[65px] md:pb-0">
+    <div className="flex flex-col md:flex-row min-h-screen font-sans pb-[65px] md:pb-0" style={{ background: 'transparent' }}>
       
       {/* Sidebar (Hidden on Mobile) */}
-      <div className="hidden md:flex flex-col w-[260px] bg-[#1e3a8a] text-white p-[30px_20px] sticky top-0 h-screen overflow-y-auto">
-        <h2 style={{ fontSize: '20px', margin: '0 0 40px 0', borderBottom: '1px solid #3b82f6', paddingBottom: '15px' }}>🏛️ Brgy. Fortune</h2>
-        <div style={{ flex: 1 }}>
-          <p className="transition-all duration-300 hover:translate-x-2 hover:bg-[#2563eb] hover:text-white" style={{ padding: '8px 16px', borderRadius: '8px', margin: '15px 0', cursor: 'pointer', fontWeight: 'bold' }}>📄 My Dashboard</p>
-          <p onClick={() => navigate('/document-request')} className="transition-all duration-300 hover:translate-x-2 hover:bg-[#2563eb] hover:text-white" style={{ padding: '8px 16px', borderRadius: '8px', margin: '15px 0', cursor: 'pointer', color: '#93c5fd' }}>➕ Request Document</p>
-          <p onClick={() => navigate('/profile')} className="transition-all duration-300 hover:translate-x-2 hover:bg-[#2563eb] hover:text-white" style={{ padding: '8px 16px', borderRadius: '8px', margin: '15px 0', cursor: 'pointer', color: '#93c5fd' }}>👤 Profile Settings</p>
+      <div className="glass-panel hidden md:flex flex-col w-[280px] p-[30px_20px] sticky top-0 h-screen overflow-y-auto z-10" style={{ borderRight: '1px solid rgba(255,255,255,0.05)', background: 'rgba(15, 23, 42, 0.6)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '40px', padding: '0 10px' }}>
+          <div style={{ width: '36px', height: '36px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px', boxShadow: '0 0 15px rgba(59,130,246,0.2)' }}>
+            <span style={{ color: 'var(--neon-blue)', fontSize: '18px' }}>🏘️</span>
+          </div>
+          <div>
+             <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold', color: 'white', letterSpacing: '0.5px' }}>Resident Portal</h2>
+             <p style={{ margin: 0, fontSize: '12px', color: 'var(--neon-blue)', textTransform: 'uppercase', letterSpacing: '1px' }}>E-Services</p>
+          </div>
         </div>
-        <button onClick={handleLogout} className="transition-all duration-300 bg-transparent text-[#fca5a5] hover:bg-[#ef4444] hover:text-white hover:border-[#ef4444]" style={{ padding: '10px', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
+        
+        <div style={{ flex: 1 }}>
+          <NavItem to="/resident-dashboard" icon="📊" label="Dashboard" />
+          <NavItem to="/document-request" icon="📄" label="Request Document" />
+          <NavItem to="/request-history" icon="🕒" label="Request History" badgeCount={history.length} />
+          <NavItem to="/profile" icon="👤" label="Profile Settings" />
+        </div>
+        <button onClick={handleLogout} className="transition-all duration-300 flex items-center px-4 py-3 rounded-xl cursor-pointer text-slate-400 hover:bg-[rgba(244,63,94,0.15)] hover:text-[#f43f5e] hover:border hover:border-[rgba(244,63,94,0.3)] w-full mt-4" style={{ border: '1px solid transparent', outline: 'none', background: 'transparent' }}>
+          <span style={{ marginRight: '12px', fontSize: '18px' }}>🚪</span>
+          <span style={{ fontWeight: 'bold' }}>Logout</span>
+        </button>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 p-5 md:p-[40px] w-full overflow-x-hidden">
-        <div style={{ marginBottom: '30px' }}>
-          <h1 style={{ margin: 0, color: '#1f2937', fontSize: '28px' }}>Resident Portal</h1>
-          <p style={{ color: '#6b7280', marginTop: '5px' }}>Welcome back. Track and manage your document requests below.</p>
+        
+        {/* Top Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+          <div>
+             <h1 style={{ margin: '0 0 5px 0', color: 'var(--text-main)', fontSize: '28px', fontWeight: 'bold' }}>Resident Portal</h1>
+             <p style={{ margin: 0, color: 'var(--text-muted)' }}>Welcome back. Track and manage your document requests below.</p>
+          </div>
+          <div className="hidden md:flex gap-[15px]">
+            <div className="glass-panel" style={{ padding: '10px 20px', borderRadius: '12px', color: 'var(--text-muted)', fontSize: '14px' }}>
+               {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+          </div>
         </div>
         
-        {/* Top Cards */}
+        {/* Top Cards (Bento Grid) */}
         <div className="flex flex-col md:flex-row gap-[20px] mt-[20px] mb-[40px]">
-          <div style={{ flex: 1, background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderLeft: '5px solid #3b82f6' }}>
-            <h4 style={{ color: '#6b7280', margin: '0 0 10px 0', textTransform: 'uppercase', fontSize: '12px' }}>Your Latest Queue</h4>
-            <p style={{ fontSize: '42px', fontWeight: 'bold', color: '#1e3a8a', margin: 0 }}>{queueInfo.queueNumber}</p>
+          
+          <div className="glass-card" style={{ flex: 1, padding: '25px', display: 'flex', flexDirection: 'column', justifyItems: 'center', justifyContent: 'center' }}>
+            <h4 style={{ color: 'var(--text-muted)', margin: '0 0 5px 0', textTransform: 'uppercase', fontSize: '14px', fontWeight: '600' }}>Your Latest Queue</h4>
+            <p style={{ fontSize: '38px', fontWeight: 'bold', color: 'var(--text-main)', margin: 0 }}>{queueInfo.queueNumber}</p>
             {queueInfo.scheduledDate && (
-              <p style={{ color: '#64748b', fontSize: '12px', margin: '5px 0 0 0', fontWeight: 'bold' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '5px 0 0 0', fontWeight: '500' }}>
                 For: {new Date(queueInfo.scheduledDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
               </p>
             )}
           </div>
           
-          <div style={{ flex: 1.2, background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', 
-            borderLeft: queueInfo.status === 'Ready for Pickup' ? '5px solid #10b981' : queueInfo.status === 'Released' ? '5px solid #3b82f6' : queueInfo.status === 'Cancelled' ? '5px solid #ef4444' : queueInfo.status === 'Waiting for Printing' ? '5px solid #f59e0b' : '5px solid #f59e0b' }}>
-            <h4 style={{ color: '#6b7280', margin: '0 0 10px 0', textTransform: 'uppercase', fontSize: '12px' }}>Latest Status</h4>
-            <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0 0 0', 
-              color: queueInfo.status === 'Ready for Pickup' ? '#10b981' : queueInfo.status === 'Released' ? '#3b82f6' : queueInfo.status === 'Cancelled' ? '#ef4444' : queueInfo.status === 'Waiting for Printing' ? '#f59e0b' : '#f59e0b' }}>
+          <div className="glass-card" style={{ flex: 1.2, padding: '25px', display: 'flex', flexDirection: 'column', justifyItems: 'center', justifyContent: 'center' }}>
+            <h4 style={{ color: 'var(--text-muted)', margin: '0 0 5px 0', textTransform: 'uppercase', fontSize: '14px', fontWeight: '600' }}>Latest Status</h4>
+            <h2 style={{ fontSize: '22px', fontWeight: 'bold', margin: '0', 
+              color: queueInfo.status === 'Ready for Pickup' ? 'var(--neon-green)' : queueInfo.status === 'Released' ? 'var(--neon-blue)' : queueInfo.status === 'Cancelled' ? '#f43f5e' : queueInfo.status === 'Waiting for Printing' ? '#fbbf24' : '#fbbf24' }}>
               {getDisplayStatus(queueInfo.status, queueInfo.or_number)}
             </h2>
 
             {/* If Ready for Pickup & NOT paid yet */}
             {queueInfo.status === 'Ready for Pickup' && !queueInfo.or_number && (
-              <div style={{ marginTop: '15px', padding: '12px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a' }}>
-                <p style={{ margin: '0 0 4px 0', fontSize: '12px', fontWeight: 'bold', color: '#b45309' }}>💳 Payment Required</p>
-                <p style={{ margin: 0, fontSize: '12px', color: '#78350f' }}>
-                  Please proceed to the Barangay Hall Cashier with your Queue Number (<b>{queueInfo.queueNumber}</b>) to pay the fee (<b>₱{queueInfo.base_fee || 0}</b>) and obtain your Official Receipt.
+              <div style={{ marginTop: '15px', padding: '12px', background: 'rgba(251, 191, 36, 0.1)', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.3)' }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: '12px', fontWeight: 'bold', color: '#fbbf24' }}>💳 Payment Required</p>
+                <p style={{ margin: 0, fontSize: '12px', color: '#fef3c7' }}>
+                  Please proceed to the Barangay Hall Cashier with your Queue Number (<b>{queueInfo.queueNumber}</b>) to pay the fee (<b>₱{queueInfo.base_fee || 0}</b>).
                 </p>
               </div>
             )}
 
             {/* If Ready for Pickup & ALREADY paid */}
             {queueInfo.status === 'Ready for Pickup' && queueInfo.or_number && (
-              <div style={{ marginTop: '15px', padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
-                <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#166534', textTransform: 'uppercase', fontWeight: 'bold' }}>Official Receipt Issued</p>
-                <p style={{ margin: 0, fontSize: '22px', fontWeight: 'bold', color: '#15803d', letterSpacing: '1px' }}>{queueInfo.or_number}</p>
-                <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#166534' }}>Present this OR code to the releasing officer to claim your document.</p>
+              <div style={{ marginTop: '15px', padding: '12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.3)', textAlign: 'center' }}>
+                <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: 'var(--neon-green)', textTransform: 'uppercase', fontWeight: 'bold' }}>Official Receipt Issued</p>
+                <p style={{ margin: 0, fontSize: '22px', fontWeight: 'bold', color: 'white', letterSpacing: '1px' }}>{queueInfo.or_number}</p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#a7f3d0' }}>Present this OR code to the releasing officer.</p>
               </div>
             )}
           </div>
           
-          <div onClick={() => navigate('/document-request')} style={{ flex: 1, background: '#2563eb', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'center', transition: '0.2s' }}>
-            <h4 style={{ color: 'white', margin: '0 0 5px 0', fontSize: '18px' }}>New Application</h4>
-            <p style={{ color: '#bfdbfe', margin: 0, fontSize: '14px' }}>Click here to apply for a new Document ➔</p>
+          <div onClick={() => navigate('/document-request')} className="glass-card transition-all duration-300 hover:scale-105 cursor-pointer" style={{ flex: 1, padding: '25px', display: 'flex', flexDirection: 'column', justifyItems: 'center', justifyContent: 'center', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59,130,246,0.3)' }}>
+            <div style={{ width: '40px', height: '40px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', color: 'var(--text-main)' }}>➕</div>
+            <h4 style={{ color: 'var(--text-main)', margin: '0 0 5px 0', fontSize: '18px', fontWeight: 'bold' }}>New Application</h4>
+            <p style={{ color: 'var(--neon-cyan)', margin: 0, fontSize: '13px' }}>Click here to apply for a new Document ➔</p>
           </div>
         </div>
 
         {/* Transaction History Table */}
-        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-          <div style={{ padding: '20px 25px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-            <h3 style={{ margin: 0, color: '#334155' }}>My Request History</h3>
+        <div className="glass-card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '20px 25px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '18px', fontWeight: '600' }}>My Request History</h3>
           </div>
           
           <div className="overflow-x-auto">
             <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left', fontSize: '14px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '15px 25px' }}>Requested</th>
-                <th style={{ padding: '15px 25px' }}>Pick-up Date</th>
-                <th style={{ padding: '15px 25px' }}>Document Type</th>
-                <th style={{ padding: '15px 25px' }}>Payment / OR #</th>
-                <th style={{ padding: '15px 25px' }}>Status</th>
-                <th style={{ padding: '15px 25px' }}>Action</th>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-muted)', textAlign: 'left', fontSize: '13px', textTransform: 'uppercase' }}>
+                <th style={{ padding: '15px 25px', fontWeight: '600' }}>Requested</th>
+                <th style={{ padding: '15px 25px', fontWeight: '600' }}>Pick-up Date</th>
+                <th style={{ padding: '15px 25px', fontWeight: '600' }}>Document Type</th>
+                <th style={{ padding: '15px 25px', fontWeight: '600' }}>Payment / OR #</th>
+                <th style={{ padding: '15px 25px', fontWeight: '600' }}>Status</th>
+                <th style={{ padding: '15px 25px', fontWeight: '600' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -163,52 +186,53 @@ export default function ResidentDashboard() {
                   const rawStatus = (!req.status || req.status === 'undefined') ? 'Pending' : req.status;
 
                   return (
-                    <tr key={req.request_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '15px 25px', color: '#64748b', fontSize: '14px' }}>{new Date(req.date_requested).toLocaleDateString()}</td>
-                      <td style={{ padding: '15px 25px', color: '#1e3a8a', fontSize: '14px', fontWeight: 'bold' }}>{req.pick_up_date ? new Date(req.pick_up_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</td>
-                      <td style={{ padding: '15px 25px', fontWeight: '500', color: '#1e293b' }}>
+                    <tr key={req.request_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }} className="hover:bg-[rgba(255,255,255,0.02)] transition-colors duration-150">
+                      <td style={{ padding: '15px 25px', color: 'var(--text-muted)', fontSize: '14px' }}>{new Date(req.date_requested).toLocaleDateString()}</td>
+                      <td style={{ padding: '15px 25px', color: 'var(--text-main)', fontSize: '14px', fontWeight: '600' }}>{req.pick_up_date ? new Date(req.pick_up_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</td>
+                      <td style={{ padding: '15px 25px', fontWeight: '500', color: 'var(--text-main)' }}>
                         {safeDocName}
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>Fee: ₱{req.base_fee || 0}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Fee: ₱{req.base_fee || 0}</div>
                       </td>
                       <td style={{ padding: '15px 25px' }}>
                         {req.or_number ? (
-                          <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', background: '#dcfce7', color: '#15803d' }}>
+                          <span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', background: 'rgba(16,185,129,0.1)', color: 'var(--neon-green)', border: '1px solid rgba(16,185,129,0.2)' }}>
                             OR: {req.or_number}
                           </span>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>--</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>--</span>
                         )}
                       </td>
                       <td style={{ padding: '15px 25px' }}>
                       <span style={{
-                        padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
-                        background: rawStatus === 'Ready for Pickup' ? '#dcfce7' : rawStatus === 'Released' ? '#dbeafe' : rawStatus === 'Cancelled' ? '#fee2e2' : rawStatus === 'Rejected' ? '#fee2e2' : rawStatus === 'Waiting for Printing' ? '#fef08a' : '#fef08a',
-                        color: rawStatus === 'Ready for Pickup' ? '#166534' : rawStatus === 'Released' ? '#1e40af' : rawStatus === 'Cancelled' ? '#991b1b' : rawStatus === 'Rejected' ? '#991b1b' : rawStatus === 'Waiting for Printing' ? '#854d0e' : '#854d0e'
+                        padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold',
+                        background: rawStatus === 'Ready for Pickup' ? 'rgba(16,185,129,0.1)' : rawStatus === 'Released' ? 'rgba(59,130,246,0.1)' : rawStatus === 'Cancelled' || rawStatus === 'Rejected' ? 'rgba(244,63,94,0.1)' : 'rgba(251,191,36,0.1)',
+                        color: rawStatus === 'Ready for Pickup' ? 'var(--neon-green)' : rawStatus === 'Released' ? 'var(--neon-blue)' : rawStatus === 'Cancelled' || rawStatus === 'Rejected' ? '#f43f5e' : '#fbbf24',
+                        border: `1px solid ${rawStatus === 'Ready for Pickup' ? 'rgba(16,185,129,0.2)' : rawStatus === 'Released' ? 'rgba(59,130,246,0.2)' : rawStatus === 'Cancelled' || rawStatus === 'Rejected' ? 'rgba(244,63,94,0.2)' : 'rgba(251,191,36,0.2)'}`
                       }}>
                         {getDisplayStatus(rawStatus, req.or_number)}
                       </span>
                       
-                      {/* NEW: Display the Staff's reason for rejection */}
+                      {/* Display the Staff's reason for rejection */}
                       {rawStatus === 'Rejected' && req.remarks && (
-                        <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '6px', fontWeight: 'bold' }}>
+                        <div style={{ color: '#f43f5e', fontSize: '12px', marginTop: '6px', fontWeight: '500' }}>
                           Reason: {req.remarks}
                         </div>
                       )}
                     </td>
                       <td style={{ padding: '15px 25px' }}>
                         {rawStatus === 'Pending' ? (
-                          <button onClick={() => handleCancel(req.request_id)} style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold' }}>
+                          <button onClick={() => handleCancel(req.request_id)} className="transition-colors hover:bg-[rgba(244,63,94,0.1)] hover:border-[#f43f5e]" style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '6px', border: '1px solid rgba(244,63,94,0.5)', background: 'transparent', color: '#f43f5e', cursor: 'pointer', fontWeight: '600' }}>
                             Cancel
                           </button>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>--</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>--</span>
                         )}
                       </td>
                     </tr>
                   )
                 })
               ) : (
-                <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>You have no past requests.</td></tr>
+                <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>You have no past requests.</td></tr>
               )}
             </tbody>
           </table>

@@ -22,7 +22,7 @@ router.get('/pending-requests', (req, res) => {
         JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
         JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
         LEFT JOIN Queue_ManagementTable q ON req.request_id = q.request_id
-        WHERE req.status IN ('Pending', 'Waiting for Printing', 'Ready for Pickup')
+        WHERE req.status IN ('Pending', 'Waiting for Printing', 'Ready for Pickup', 'Ready to Print')
         ORDER BY req.date_requested ASC
     `;
     db.query(sql, (err, results) => {
@@ -88,8 +88,8 @@ router.put('/generate-or/:id', (req, res) => {
                 return res.status(400).json({ error: `OR Code "${cleanOr}" has already been used for another transaction.` });
             }
 
-            // 3. Save the OR Number in the database
-            const updateSql = `UPDATE Document_RequestTable SET or_number = ? WHERE request_id = ?`;
+            // 3. Save the OR Number and update status to Ready for Pickup
+            const updateSql = `UPDATE Document_RequestTable SET or_number = ?, status = 'Ready for Pickup' WHERE request_id = ?`;
             db.query(updateSql, [cleanOr, requestId], (updateErr) => {
                 if (updateErr) return res.status(500).json({ error: "Failed to record OR number." });
 

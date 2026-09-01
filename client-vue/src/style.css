@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-blue: #2e4bb2;
+  --color-brand-light-blue: #3d5bc4;
+  --color-brand-gray: #f4f7f6;
+  --color-brand-dark: #1e293b;
+  --font-sans: "Inter", "Segoe UI", Tahoma, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-brand-gray);
+    color: var(--color-brand-dark);
+    margin: 0;
+    font-family: var(--font-sans);
+  }
+}
+
+.dashboard-card {
+  @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+}
+
+.sidebar-nav-item {
+  @apply flex items-center px-4 py-3 cursor-pointer transition-colors duration-200;
+}
+.sidebar-nav-item.active {
+  @apply bg-brand-light-blue border-l-4 border-white font-bold;
+}
+.sidebar-nav-item:not(.active):hover {
+  @apply bg-[#3650b0];
+}
