@@ -117,15 +117,6 @@ export default function AccountManagement() {
     } catch (error) { toast.error("Error updating account status."); }
   };
 
-  const handleToggleCaptain = async (staffId, isCaptain) => {
-    if (isCaptain) return; // Cannot toggle off captain status this way, must assign another
-    if (!window.confirm("Are you sure you want to assign this staff member as the new Barangay Captain? This will replace the current captain.")) return;
-    try {
-      await axios.put(`http://localhost:5000/api/admin/staff/${staffId}/toggle-captain`);
-      fetchData();
-      toast.success("Barangay Captain updated successfully!");
-    } catch (error) { toast.error("Error updating Barangay Captain."); }
-  };
 
   const handleDeleteAccount = async (id, type) => {
     if (!window.confirm(`WARNING: Are you sure you want to permanently delete this ${type} account?`)) return;
@@ -228,8 +219,8 @@ export default function AccountManagement() {
                     <div style={{ color: '#64748b', fontSize: '13px', marginTop: '4px' }}>@{staff.username}</div>
                     </td>
                     <td>
-                      <span style={{ padding: '6px 12px', background: staff.is_captain === 1 ? '#fef9c3' : '#f1f5f9', color: staff.is_captain === 1 ? '#854d0e' : '#475569', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', border: `1px solid ${staff.is_captain === 1 ? '#fde047' : '#cbd5e1'}` }}>
-                        {staff.is_captain === 1 ? '👑 Brgy. Captain' : 'Front Desk Staff'}
+                      <span style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #cbd5e1' }}>
+                        Front Desk Staff
                       </span>
                     </td>
                     <td>
@@ -239,14 +230,6 @@ export default function AccountManagement() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                        {staff.is_captain === 0 && (
-                          <button 
-                            onClick={() => handleToggleCaptain(staff.id, staff.is_captain)} 
-                            className="btn-action btn-captain"
-                          >
-                            Make Captain
-                          </button>
-                        )}
                         <button 
                           onClick={() => handleToggleStaffStatus(staff.id, staff.account_status)} 
                           className={`btn-action ${staff.account_status === 'Active' ? 'btn-suspend' : 'btn-edit'}`}

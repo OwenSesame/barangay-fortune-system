@@ -71,8 +71,13 @@ const printSlip = () => {
           <span class="text-green-600 text-base font-bold tracking-wide">{{ orNumber || receiptData.or_number || 'N/A' }}</span>
         </div>
         <div class="flex justify-between mb-3">
-          <span class="text-gray-500 text-sm">Resident:</span>
-          <span class="text-gray-900 text-sm font-bold">{{ receiptData.first_name }} {{ receiptData.last_name }}</span>
+          <span class="text-gray-500 text-sm">Resident / Applicant:</span>
+          <div class="text-right">
+            <span class="text-gray-900 text-sm font-bold block">{{ receiptData.first_name }} {{ receiptData.last_name }}</span>
+            <span v-if="receiptData.requested_for_others && receiptData.requested_for_name" class="text-purple-700 text-xs font-semibold block">
+              (For: {{ receiptData.requested_for_name }})
+            </span>
+          </div>
         </div>
         <div class="flex justify-between mb-3">
           <span class="text-gray-500 text-sm">Document:</span>

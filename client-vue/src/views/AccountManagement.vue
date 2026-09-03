@@ -130,17 +130,6 @@ const handleToggleStaffStatus = async (staffId, currentStatus) => {
   }
 }
 
-const handleToggleCaptain = async (staffId, isCaptain) => {
-  if (isCaptain) return
-  if (!window.confirm("Are you sure you want to assign this staff member as the new Barangay Captain? This will replace the current captain.")) return
-  try {
-    await axios.put(`http://localhost:5000/api/admin/staff/${staffId}/toggle-captain`)
-    fetchData()
-    toast.success("Barangay Captain updated successfully!")
-  } catch (error) {
-    toast.error("Error updating Barangay Captain.")
-  }
-}
 
 const handleDeleteAccount = async (id, type) => {
   if (!window.confirm(`WARNING: Are you sure you want to permanently delete this ${type} account?`)) return
@@ -229,8 +218,8 @@ const closeEditModal = () => {
                   <div class="text-gray-500 text-xs mt-1">@{{ staff.username }}</div>
                 </td>
                 <td class="py-4 px-6 align-middle">
-                  <span :class="['px-3 py-1.5 rounded-full text-xs font-bold border', staff.is_captain === 1 ? 'bg-yellow-50 text-yellow-800 border-yellow-300' : 'bg-gray-100 text-gray-600 border-gray-300']">
-                    {{ staff.is_captain === 1 ? '👑 Brgy. Captain' : 'Front Desk Staff' }}
+                  <span class="px-3 py-1.5 rounded-full text-xs font-bold border bg-gray-100 text-gray-600 border-gray-300">
+                    Front Desk Staff
                   </span>
                 </td>
                 <td class="py-4 px-6 align-middle">
@@ -243,9 +232,6 @@ const closeEditModal = () => {
                 </td>
                 <td class="py-4 px-6 align-middle text-right">
                   <div class="flex gap-2 justify-end">
-                    <button v-if="staff.is_captain === 0" @click="handleToggleCaptain(staff.id, staff.is_captain)" class="px-4 py-2 rounded-lg text-xs font-bold bg-yellow-50 text-yellow-800 border border-yellow-300 hover:bg-yellow-100 transition-colors">
-                      Make Captain
-                    </button>
                     <button 
                       @click="handleToggleStaffStatus(staff.id, staff.account_status)" 
                       :class="['px-4 py-2 rounded-lg text-xs font-bold border transition-colors', staff.account_status === 'Active' ? 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100' : 'bg-emerald-500 text-white hover:bg-emerald-600']"

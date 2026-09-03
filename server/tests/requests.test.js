@@ -131,4 +131,36 @@ describe('Requests Routes (BR4)', () => {
         expect(response.status).toBe(403);
         expect(response.body.error).toContain('is already full. Please select another date.');
     });
+
+    it('should reject for-others submission if requested_for_name is missing', async () => {
+        const token = generateTestToken(55, 'Resident');
+
+        const response = await request(app)
+            .post('/api/requests/submit')
+            .set('Authorization', `Bearer ${token}`)
+            .field('doc_type_id', 1)
+            .field('purpose', 'Employment')
+            .field('scheduled_date', '2026-10-15')
+            .field('requested_for_others', 'true')
+            .attach('authorization_proof', Buffer.from('fake auth proof'), 'auth.png');
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Please enter the full name of the person this document is for.');
+    });
+
+    it('should reject for-others submission if authorization_proof is missing', async () => {
+        const token = generateTestToken(55, 'Resident');
+
+        const response = await request(app)
+            .post('/api/requests/submit')
+            .set('Authorization', `Bearer ${token}`)
+            .field('doc_type_id', 1)
+            .field('purpose', 'Employment')
+            .field('scheduled_date', '2026-10-15')
+            .field('requested_for_others', 'true')
+            .field('requested_for_name', 'Maria Dela Cruz');
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Please upload proof of authorization or relationship.');
+    });
 });

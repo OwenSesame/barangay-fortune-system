@@ -55,7 +55,8 @@ const filteredRecords = computed(() => {
     (rec.last_name?.toLowerCase().includes(term)) ||
     (rec.doc_name?.toLowerCase().includes(term)) ||
     (rec.request_id?.toString().includes(term)) ||
-    (rec.or_number?.toLowerCase().includes(term))
+    (rec.or_number?.toLowerCase().includes(term)) ||
+    (rec.requested_for_name?.toLowerCase().includes(term))
   )
 })
 
@@ -97,7 +98,7 @@ const openReceipt = (requestId) => {
           <thead class="bg-gray-50">
             <tr>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Date</th>
-              <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Resident</th>
+              <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Resident / Applicant</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Document Type</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Status</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">OR Number</th>
@@ -109,7 +110,12 @@ const openReceipt = (requestId) => {
               <td class="py-4 px-6 text-gray-500 text-sm">
                 {{ new Date(rec.date_requested).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
               </td>
-              <td class="py-4 px-6 font-bold text-gray-900 text-sm">{{ rec.first_name }} {{ rec.last_name }}</td>
+              <td class="py-4 px-6">
+                <div class="font-bold text-gray-900 text-sm">{{ rec.first_name }} {{ rec.last_name }}</div>
+                <div v-if="rec.requested_for_others && rec.requested_for_name" class="mt-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                  👥 For: {{ rec.requested_for_name }}
+                </div>
+              </td>
               <td class="py-4 px-6 font-semibold text-brand-blue text-sm">{{ rec.doc_name }}</td>
               <td class="py-4 px-6">
                 <span :class="['px-3 py-1.5 rounded-full text-xs font-bold border', rec.status === 'Released' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200']">

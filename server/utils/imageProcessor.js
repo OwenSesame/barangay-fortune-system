@@ -9,24 +9,30 @@ import fs from 'fs';
  */
 export const processIDPhoto = async (originalFilePath) => {
     try {
-        const fullOriginalPath = path.join(process.cwd(), originalFilePath);
-        
-        // Ensure the file exists
+        if (!originalFilePath) return null;
+
+        let fullOriginalPath = path.resolve(originalFilePath);
         if (!fs.existsSync(fullOriginalPath)) {
-            return originalFilePath;
+            const inServerPath = path.resolve(process.cwd(), 'server', originalFilePath);
+            if (fs.existsSync(inServerPath)) {
+                fullOriginalPath = inServerPath;
+            } else {
+                return originalFilePath.replace(/\\/g, '/');
+            }
         }
 
         // Determine if file is actually an image (Multer allows PDFs too)
-        const ext = path.extname(originalFilePath).toLowerCase();
+        const ext = path.extname(fullOriginalPath).toLowerCase();
         if (ext === '.pdf') {
-            // Can't optimize PDF with sharp, just return the original
-            return originalFilePath; 
+            // Can't optimize PDF with sharp, just return the original relative path
+            const rel = path.relative(process.cwd(), fullOriginalPath).replace(/\\/g, '/');
+            return rel.startsWith('server/') ? rel.replace(/^server\//, '') : rel;
         }
 
-        // Generate a new optimized filename
-        const optimizedFilename = 'opt_' + path.basename(originalFilePath);
-        const optimizedRelativePath = path.join('uploads', optimizedFilename);
-        const fullOptimizedPath = path.join(process.cwd(), optimizedRelativePath);
+        // Generate a new optimized filename in the same directory as the original file
+        const uploadsDir = path.dirname(fullOriginalPath);
+        const optimizedFilename = 'opt_' + path.basename(fullOriginalPath);
+        const fullOptimizedPath = path.join(uploadsDir, optimizedFilename);
 
         // Process with sharp
         await sharp(fullOriginalPath)
@@ -43,8 +49,8 @@ export const processIDPhoto = async (originalFilePath) => {
             if (err) console.error("Failed to delete original raw file:", err);
         });
 
-        // Always use forward slashes for DB consistency
-        return optimizedRelativePath.replace(/\\/g, '/');
+        // Always return 'uploads/opt_...' for DB consistency
+        return ('uploads/' + optimizedFilename).replace(/\\/g, '/');
 
     } catch (error) {
         console.error("Error processing image with sharp:", error);

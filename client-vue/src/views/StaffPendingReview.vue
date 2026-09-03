@@ -64,7 +64,8 @@ const filteredRequests = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return pendingRequests.value.filter(req => 
     `${req.first_name} ${req.last_name}`.toLowerCase().includes(q) ||
-    req.daily_sequence_no?.toString().includes(q)
+    req.daily_sequence_no?.toString().includes(q) ||
+    (req.requested_for_name && req.requested_for_name.toLowerCase().includes(q))
   )
 })
 
@@ -129,7 +130,7 @@ const isPdf = (filePath) => filePath && filePath.toLowerCase().endsWith('.pdf')
           <thead class="bg-gray-50">
             <tr>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Q #</th>
-              <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Resident Name</th>
+              <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Resident / Applicant</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Document & Purpose</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Review Files</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Action</th>
@@ -138,17 +139,29 @@ const isPdf = (filePath) => filePath && filePath.toLowerCase().endsWith('.pdf')
           <tbody>
             <tr v-for="req in filteredRequests" :key="req.request_id" class="border-b border-gray-50 hover:bg-gray-50">
               <td class="py-4 px-6 font-bold text-brand-blue text-lg">#{{ req.daily_sequence_no }}</td>
-              <td class="py-4 px-6 font-bold text-gray-900 text-sm">{{ req.first_name }} {{ req.last_name }}</td>
+              <td class="py-4 px-6">
+                <div class="font-bold text-gray-900 text-sm">{{ req.first_name }} {{ req.last_name }}</div>
+                <div v-if="req.requested_for_others && req.requested_for_name" class="mt-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                  👥 For: {{ req.requested_for_name }}
+                </div>
+              </td>
               <td class="py-4 px-6">
                 <b class="text-gray-900 text-sm">{{ req.doc_name }}</b><br/>
                 <span class="text-[11px] text-gray-500 font-semibold">{{ req.purpose }}</span>
               </td>
               <td class="py-4 px-6">
                 <button 
-                  @click="selectedFiles = { idImage: req.id_proof_image, reqFile: req.requirement_file }" 
+                  @click="selectedFiles = { 
+                    idImage: req.id_proof_image, 
+                    reqFile: req.requirement_file, 
+                    authProof: req.authorization_proof, 
+                    isForOthers: req.requested_for_others, 
+                    forPersonName: req.requested_for_name, 
+                    applicantName: `${req.first_name} ${req.last_name}` 
+                  }" 
                   class="px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded font-bold text-xs hover:bg-gray-50 transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
                 >
-                  👁️ Files
+                  👁️ Files {{ req.requested_for_others ? '(3)' : '(2)' }}
                 </button>
               </td>
               <td class="py-4 px-6">
@@ -199,9 +212,14 @@ const isPdf = (filePath) => filePath && filePath.toLowerCase().endsWith('.pdf')
         <!-- Backdrop -->
         <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" @click="selectedFiles = null"></div>
 
-        <div class="bg-white p-8 rounded-2xl w-full max-w-5xl shadow-2xl relative max-h-[90vh] overflow-y-auto transform transition-all">
+        <div class="bg-white p-8 rounded-2xl w-full max-w-6xl shadow-2xl relative max-h-[90vh] overflow-y-auto transform transition-all">
           <div class="flex justify-between items-center border-b border-gray-200 pb-5 mb-6 sticky top-0 bg-white z-10">
-            <h2 class="m-0 text-gray-900 text-2xl font-bold tracking-tight">Application Review</h2>
+            <div>
+              <h2 class="m-0 text-gray-900 text-2xl font-bold tracking-tight">Application Review</h2>
+              <p v-if="selectedFiles.isForOthers" class="text-purple-700 text-xs font-semibold mt-1 mb-0 flex items-center gap-1">
+                👥 Requested by <b>{{ selectedFiles.applicantName }}</b> on behalf of <b>{{ selectedFiles.forPersonName }}</b>
+              </p>
+            </div>
             <button 
               @click="selectedFiles = null" 
               class="px-5 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-lg font-bold hover:bg-red-100 transition-colors text-sm cursor-pointer shadow-sm"
@@ -209,31 +227,49 @@ const isPdf = (filePath) => filePath && filePath.toLowerCase().endsWith('.pdf')
               Close Window
             </button>
           </div>
-          <div class="flex gap-8 max-md:flex-col">
+          <div class="flex gap-6 max-md:flex-col">
             
-            <div class="flex-1 bg-gray-50 p-6 rounded-xl border border-gray-200">
-              <h4 class="m-0 mb-4 text-gray-600 font-bold uppercase tracking-wide text-xs">1. Registered ID</h4>
-              <div class="bg-white p-2 rounded-lg border border-gray-200 h-[400px] flex items-center justify-center relative overflow-hidden">
+            <div class="flex-1 bg-gray-50 p-5 rounded-xl border border-gray-200">
+              <h4 class="m-0 mb-3 text-gray-600 font-bold uppercase tracking-wide text-xs">1. Registered ID (Applicant)</h4>
+              <div class="bg-white p-2 rounded-lg border border-gray-200 h-[380px] flex items-center justify-center relative overflow-hidden">
                 <template v-if="selectedFiles.idImage">
                   <embed v-if="isPdf(selectedFiles.idImage)" :src="`http://localhost:5000/${selectedFiles.idImage}`" type="application/pdf" class="w-full h-full rounded" />
                   <img v-else :src="`http://localhost:5000/${selectedFiles.idImage}`" alt="ID" class="w-full h-full object-contain rounded" />
+                  <a :href="`http://localhost:5000/${selectedFiles.idImage}`" target="_blank" rel="noreferrer" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-brand-blue font-bold shadow-md border border-gray-100 hover:bg-white transition-colors text-xs text-center">
+                    Open File ↗
+                  </a>
                 </template>
-                <p v-else class="text-gray-400 italic m-0">No ID provided.</p>
+                <p v-else class="text-gray-400 italic m-0 text-sm">No ID provided.</p>
               </div>
             </div>
             
-            <div class="flex-1 bg-gray-50 p-6 rounded-xl border border-gray-200">
-              <h4 class="m-0 mb-4 text-gray-600 font-bold uppercase tracking-wide text-xs">2. Submitted Requirement</h4>
-              <div class="bg-white p-2 rounded-lg border border-gray-200 h-[400px] flex items-center justify-center relative overflow-hidden">
+            <div class="flex-1 bg-gray-50 p-5 rounded-xl border border-gray-200">
+              <h4 class="m-0 mb-3 text-gray-600 font-bold uppercase tracking-wide text-xs">2. Document Requirement</h4>
+              <div class="bg-white p-2 rounded-lg border border-gray-200 h-[380px] flex items-center justify-center relative overflow-hidden">
                 <template v-if="selectedFiles.reqFile">
                   <embed v-if="isPdf(selectedFiles.reqFile)" :src="`http://localhost:5000/${selectedFiles.reqFile}`" type="application/pdf" class="w-full h-full rounded" />
                   <img v-else :src="`http://localhost:5000/${selectedFiles.reqFile}`" alt="Req" class="w-full h-full object-contain rounded" />
                   
-                  <a :href="`http://localhost:5000/${selectedFiles.reqFile}`" target="_blank" rel="noreferrer" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur px-4 py-2 rounded-full text-brand-blue font-bold shadow-md border border-gray-100 hover:bg-white transition-colors text-sm text-center">
+                  <a :href="`http://localhost:5000/${selectedFiles.reqFile}`" target="_blank" rel="noreferrer" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-brand-blue font-bold shadow-md border border-gray-100 hover:bg-white transition-colors text-xs text-center">
                     Open File ↗
                   </a>
                 </template>
-                <p v-else class="text-gray-400 italic m-0">No requirement provided.</p>
+                <p v-else class="text-gray-400 italic m-0 text-sm">No requirement file provided.</p>
+              </div>
+            </div>
+
+            <div v-if="selectedFiles.isForOthers" class="flex-1 bg-purple-50/60 p-5 rounded-xl border border-purple-200">
+              <h4 class="m-0 mb-3 text-purple-800 font-bold uppercase tracking-wide text-xs">3. Authorization / Proof</h4>
+              <div class="bg-white p-2 rounded-lg border border-purple-200 h-[380px] flex items-center justify-center relative overflow-hidden">
+                <template v-if="selectedFiles.authProof">
+                  <embed v-if="isPdf(selectedFiles.authProof)" :src="`http://localhost:5000/${selectedFiles.authProof}`" type="application/pdf" class="w-full h-full rounded" />
+                  <img v-else :src="`http://localhost:5000/${selectedFiles.authProof}`" alt="Auth Proof" class="w-full h-full object-contain rounded" />
+                  
+                  <a :href="`http://localhost:5000/${selectedFiles.authProof}`" target="_blank" rel="noreferrer" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-purple-700 font-bold shadow-md border border-purple-100 hover:bg-white transition-colors text-xs text-center">
+                    Open File ↗
+                  </a>
+                </template>
+                <p v-else class="text-gray-400 italic m-0 text-sm">No authorization proof provided.</p>
               </div>
             </div>
 

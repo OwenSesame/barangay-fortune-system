@@ -69,6 +69,13 @@ const handleAuthorizationChange = (e) => {
   authorizationProof.value = e.target.files[0]
 }
 
+const handleToggleForOthers = () => {
+  if (!form.value.requestForOthers) {
+    form.value.requestedForName = ''
+    authorizationProof.value = null
+  }
+}
+
 const handleSubmit = async () => {
   if (isSubmitting.value) return
   
@@ -79,6 +86,15 @@ const handleSubmit = async () => {
     return toast.error("Please upload the required document/ID.")
   }
 
+  if (form.value.requestForOthers) {
+    if (!form.value.requestedForName || !form.value.requestedForName.trim()) {
+      return toast.error("Please enter the full name of the person this document is for.")
+    }
+    if (!authorizationProof.value) {
+      return toast.error("Please upload proof of authorization or relationship (ID, Authorization Letter, or Certificate).")
+    }
+  }
+
   const myId = localStorage.getItem('userId')
   const formData = new FormData()
   
@@ -86,16 +102,17 @@ const handleSubmit = async () => {
   formData.append('doc_type_id', form.value.docType)
   formData.append('purpose', form.value.purpose)
   formData.append('scheduled_date', form.value.scheduledDate)
-  formData.append('requested_for_others', form.value.requestForOthers)
-  if (form.value.requestForOthers && form.value.requestedForName) {
-    formData.append('requested_for_name', form.value.requestedForName)
+  formData.append('requested_for_others', form.value.requestForOthers ? 'true' : 'false')
+  
+  if (form.value.requestForOthers) {
+    formData.append('requested_for_name', form.value.requestedForName.trim())
+    if (authorizationProof.value) {
+      formData.append('authorization_proof', authorizationProof.value)
+    }
   }
   
   if (requirementFile.value) {
     formData.append('requirement_file', requirementFile.value)
-  }
-  if (form.value.requestForOthers && authorizationProof.value) {
-    formData.append('authorization_proof', authorizationProof.value)
   }
 
   isSubmitting.value = true
@@ -114,6 +131,8 @@ const handleSubmit = async () => {
   } catch (error) {
     if (error.response && error.response.status === 403) {
       toast.error(error.response.data.error || "Anti-Spam Alert: Active request already exists.")
+    } else if (error.response && error.response.data && error.response.data.error) {
+      toast.error(error.response.data.error)
     } else {
       toast.error("Error submitting application. Please try again.")
     }
@@ -200,7 +219,7 @@ const handleSubmit = async () => {
             
             <div class="mb-6 pb-6 border-b border-gray-100">
               <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" v-model="form.requestForOthers" class="w-5 h-5 text-brand-blue rounded border-gray-300 focus:ring-brand-blue transition-colors" />
+                <input type="checkbox" v-model="form.requestForOthers" @change="handleToggleForOthers" class="w-5 h-5 text-brand-blue rounded border-gray-300 focus:ring-brand-blue transition-colors" />
                 <span class="text-gray-700 font-semibold">I am requesting this on behalf of someone else</span>
               </label>
               

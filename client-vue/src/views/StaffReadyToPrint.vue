@@ -95,7 +95,8 @@ const filteredRequests = computed(() => {
     result = result.filter(req => 
       `${req.first_name} ${req.last_name}`.toLowerCase().includes(q) ||
       req.daily_sequence_no?.toString().includes(q) ||
-      req.or_number?.toLowerCase().includes(q)
+      req.or_number?.toLowerCase().includes(q) ||
+      (req.requested_for_name && req.requested_for_name.toLowerCase().includes(q))
     )
   }
   return result
@@ -241,7 +242,7 @@ const enforceUppercaseOR = (e, targetRef) => {
           <thead class="bg-gray-50">
             <tr>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Q #</th>
-              <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Resident Name</th>
+              <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Resident / Applicant</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Document & Fee</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Payment Status</th>
               <th class="py-4 px-6 text-gray-500 text-xs uppercase tracking-wide font-bold border-b-2 border-gray-200">Action</th>
@@ -250,7 +251,12 @@ const enforceUppercaseOR = (e, targetRef) => {
           <tbody>
             <tr v-for="req in filteredRequests" :key="req.request_id" class="border-b border-gray-50 hover:bg-gray-50 transition-colors">
               <td class="py-4 px-6 font-bold text-gray-900">{{ req.daily_sequence_no }}</td>
-              <td class="py-4 px-6 font-bold text-gray-700 text-sm">{{ req.first_name }} {{ req.last_name }}</td>
+              <td class="py-4 px-6">
+                <div class="font-bold text-gray-700 text-sm">{{ req.first_name }} {{ req.last_name }}</div>
+                <div v-if="req.requested_for_others && req.requested_for_name" class="mt-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                  👥 For: {{ req.requested_for_name }}
+                </div>
+              </td>
               <td class="py-4 px-6">
                 <b class="text-brand-blue text-sm">{{ req.doc_name }}</b><br/>
                 <span class="text-xs text-green-600 font-bold">Fee: ₱{{ req.base_fee || 0 }}</span>

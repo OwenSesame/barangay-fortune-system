@@ -132,6 +132,10 @@ const todayString = computed(() => {
               </span>
             </div>
 
+            <div v-if="queue.requested_for_others && queue.requested_for_name" class="mb-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+              👥 For: {{ queue.requested_for_name }}
+            </div>
+
             <p class="text-gray-500 text-xs m-0 mb-4 font-medium flex items-center gap-1">
               📅 Scheduled: <span class="text-gray-900 font-bold">{{ queue.pick_up_date ? new Date(queue.pick_up_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (queue.scheduled_date ? new Date(queue.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD') }}</span>
             </p>
@@ -234,6 +238,9 @@ const todayString = computed(() => {
                 </td>
                 <td class="py-4 px-6">
                   <div class="font-bold text-gray-900 text-sm">{{ req.doc_name === 'undefined' ? 'Official Document' : req.doc_name }}</div>
+                  <div v-if="req.requested_for_others && req.requested_for_name" class="text-xs text-purple-700 font-semibold mt-0.5">
+                    👥 For: {{ req.requested_for_name }}
+                  </div>
                   <div class="text-[11px] text-gray-500 font-medium mt-1 uppercase tracking-wider">Queue: {{ req.daily_sequence_no || '--' }}</div>
                 </td>
                 <td class="py-4 px-6">

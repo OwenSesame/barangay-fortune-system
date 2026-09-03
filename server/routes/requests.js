@@ -126,10 +126,20 @@ const requestLocks = new Set(); // In-memory mutex for BR4 Anti-Spam
 router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ name: 'requirement_file', maxCount: 1 }, { name: 'authorization_proof', maxCount: 1 }]), async (req, res) => {
     const { doc_type_id, purpose, scheduled_date, requested_for_others, requested_for_name } = req.body;
     const resident_id = req.user.id;
-    let requirement_file = (req.files && req.files['requirement_file']) ? req.files['requirement_file'][0].path.replace('\\', '/') : null;
-    let authorization_proof = (req.files && req.files['authorization_proof']) ? req.files['authorization_proof'][0].path.replace('\\', '/') : null;
+    let requirement_file = (req.files && req.files['requirement_file']) ? req.files['requirement_file'][0].path.replace(/\\/g, '/') : null;
+    let authorization_proof = (req.files && req.files['authorization_proof']) ? req.files['authorization_proof'][0].path.replace(/\\/g, '/') : null;
     
-    const isForOthers = requested_for_others === 'true' || requested_for_others === true || requested_for_others === 1;
+    const isForOthers = requested_for_others === 'true' || requested_for_others === true || requested_for_others === 1 || requested_for_others === '1';
+    const trimmedRequestedForName = (isForOthers && requested_for_name) ? requested_for_name.trim() : null;
+
+    if (isForOthers) {
+        if (!trimmedRequestedForName) {
+            return res.status(400).json({ error: "Please enter the full name of the person this document is for." });
+        }
+        if (!authorization_proof) {
+            return res.status(400).json({ error: "Please upload proof of authorization or relationship." });
+        }
+    }
 
     // FEATURE 14: Process the uploaded photo asynchronously
     if (requirement_file) {
@@ -141,8 +151,8 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
 
     // Mutex Lock Check (Prevents race conditions if Resident spams the submit button)
     let lockKey = `${resident_id}_${doc_type_id}`;
-    if (isForOthers && requested_for_name) {
-        lockKey += `_${requested_for_name}`;
+    if (isForOthers && trimmedRequestedForName) {
+        lockKey += `_${trimmedRequestedForName}`;
     }
 
     if (requestLocks.has(lockKey)) {
@@ -159,9 +169,9 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
     `;
     let queryParams = [resident_id, doc_type_id];
 
-    if (isForOthers && requested_for_name) {
-        duplicateCheckSql += " AND requested_for_name = ?";
-        queryParams.push(requested_for_name);
+    if (isForOthers && trimmedRequestedForName) {
+        duplicateCheckSql += " AND requested_for_others = 1 AND requested_for_name = ?";
+        queryParams.push(trimmedRequestedForName);
     } else {
         duplicateCheckSql += " AND (requested_for_others = 0 OR requested_for_others IS NULL)";
     }
@@ -194,7 +204,7 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
         FROM Resident_ProfileTable res, Document_TemplateTable doc 
         WHERE res.resident_id = ? AND doc.doc_type_id = ?
     `;
-    db.query(fetchNamesSql, [doc_type_id, resident_id], (err, nameRes) => {
+    db.query(fetchNamesSql, [resident_id, doc_type_id], (err, nameRes) => {
         if (err) {
             unlock();
             return res.status(500).json({ error: "Database error." });
@@ -248,7 +258,7 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
                 // Save with the scheduled_date mapped to pick_up_date
                 const sql = `INSERT INTO Document_RequestTable (resident_id, doc_type_id, purpose, requirement_file, status, pick_up_date, requested_for_others, requested_for_name, authorization_proof) VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?, ?)`;
                 
-                db.query(sql, [resident_id, doc_type_id, purpose, requirement_file, scheduled_date, isForOthers, requested_for_name || null, authorization_proof], (err, result) => {
+                db.query(sql, [resident_id, doc_type_id, purpose, requirement_file, scheduled_date, isForOthers ? 1 : 0, trimmedRequestedForName, isForOthers ? authorization_proof : null], (err, result) => {
                     if (err) {
                         unlock();
                         return res.status(500).json({ error: "Failed to save request." });
@@ -260,10 +270,11 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
                     db.query(queueSql, [requestId, queueNumber.toString()], (qErr) => {
                         if (qErr) console.error(qErr);
                         
-                        const logSql = `INSERT INTO Audit_LogsTable (user_id, action_type, action_details) VALUES (?, ?, ?)`;
-                        const targetPerson = isForOthers && requested_for_name ? requested_for_name : residentName;
+                        const logSql = `INSERT INTO audits_logstable (user_id, action_type, details) VALUES (?, ?, ?)`;
+                        const targetPerson = isForOthers && trimmedRequestedForName ? `${trimmedRequestedForName} (on behalf by ${residentName})` : residentName;
                         const logDetails = `Resident ${residentName} requested a ${documentName} for ${targetPerson} for ${scheduled_date} (Request #${requestId})`;
-                        db.query(logSql, [0, 'Document Requested', logDetails], () => {
+                        db.query(logSql, [resident_id, 'Document Requested', logDetails], (logErr) => {
+                            if (logErr) console.error("Audit log error:", logErr);
                             unlock();
                             res.json({ message: "Application submitted successfully", queue_number: queueNumber });
                         });
@@ -279,7 +290,7 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
 // GET: Fetch the latest request for the dashboard
 router.get('/latest/:residentId', verifyToken, requireRole(['Resident']), (req, res) => {
     const sql = `
-        SELECT r.request_id, r.status as request_status, r.or_number, q.daily_sequence_no, r.pick_up_date as scheduled_date, doc.doc_name, doc.base_fee
+        SELECT r.request_id, r.status as request_status, r.or_number, r.requested_for_others, r.requested_for_name, q.daily_sequence_no, r.pick_up_date as scheduled_date, doc.doc_name, doc.base_fee
         FROM Document_RequestTable r
         JOIN Document_TemplateTable doc ON r.doc_type_id = doc.doc_type_id
         JOIN Queue_ManagementTable q ON r.request_id = q.request_id
@@ -295,7 +306,7 @@ router.get('/latest/:residentId', verifyToken, requireRole(['Resident']), (req, 
 // GET: Fetch the complete history of requests for a resident
 router.get('/history/:residentId', verifyToken, requireRole(['Resident']), (req, res) => {
     const sql = `
-        SELECT r.request_id, doc.doc_name, doc.base_fee, r.date_requested, r.status, r.remarks, r.or_number, q.daily_sequence_no 
+        SELECT r.request_id, doc.doc_name, doc.base_fee, r.date_requested, r.pick_up_date, r.status, r.remarks, r.or_number, r.requested_for_others, r.requested_for_name, q.daily_sequence_no 
         FROM Document_RequestTable r
         JOIN Document_TemplateTable doc ON r.doc_type_id = doc.doc_type_id
         LEFT JOIN Queue_ManagementTable q ON r.request_id = q.request_id
@@ -310,10 +321,11 @@ router.get('/history/:residentId', verifyToken, requireRole(['Resident']), (req,
 
 // PUT: Cancel a pending request
 router.put('/cancel/:id', verifyToken, requireRole(['Resident']), (req, res) => {
-    // 1. Fetch the requirement_file first
-    db.query(`SELECT requirement_file FROM Document_RequestTable WHERE request_id = ?`, [req.params.id], (fetchErr, fetchRes) => {
+    // 1. Fetch the requirement_file and authorization_proof first
+    db.query(`SELECT requirement_file, authorization_proof FROM Document_RequestTable WHERE request_id = ?`, [req.params.id], (fetchErr, fetchRes) => {
         if (fetchErr) return res.status(500).json({ error: "Database error" });
         const requirementFile = fetchRes.length > 0 ? fetchRes[0].requirement_file : null;
+        const authorizationProof = fetchRes.length > 0 ? fetchRes[0].authorization_proof : null;
 
         // We use TRIM() just in case there are invisible spaces saving in your database
         const sql = `UPDATE Document_RequestTable SET status = 'Cancelled' WHERE request_id = ? AND TRIM(status) = 'Pending'`;
@@ -326,12 +338,20 @@ router.put('/cancel/:id', verifyToken, requireRole(['Resident']), (req, res) => 
                 return res.status(400).json({ error: "Could not cancel. It may have already been processed by staff." });
             }
 
-            // 3. Garbage Collection: Delete the physical file from the server
+            // 3. Garbage Collection: Delete physical files from the server
             if (requirementFile) {
                 const filePath = path.join(process.cwd(), requirementFile);
                 fs.unlink(filePath, (unlinkErr) => {
                     if (unlinkErr && unlinkErr.code !== 'ENOENT') {
-                        console.error(`Failed to delete file ${filePath}:`, unlinkErr);
+                        console.error(`Failed to delete requirement file ${filePath}:`, unlinkErr);
+                    }
+                });
+            }
+            if (authorizationProof) {
+                const authPath = path.join(process.cwd(), authorizationProof);
+                fs.unlink(authPath, (unlinkErr) => {
+                    if (unlinkErr && unlinkErr.code !== 'ENOENT') {
+                        console.error(`Failed to delete authorization proof ${authPath}:`, unlinkErr);
                     }
                 });
             }

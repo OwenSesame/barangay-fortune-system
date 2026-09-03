@@ -93,18 +93,33 @@ const handleBack = () => {
 
         <div class="text-[18px] leading-[2]">
           <p><strong>TO WHOM IT MAY CONCERN:</strong></p>
-          <p class="indent-[40px] text-justify">
-            This is to certify that <strong>{{ docData.first_name }} {{ docData.middle_name ? docData.middle_name + ' ' : '' }}{{ docData.last_name }}</strong>, 
-            of legal age, <strong>{{ docData.civil_status || 'Single' }}</strong>, is a bonafide resident of 
-            <strong> {{ docData.addres_street }}</strong>, Barangay Fortune, Baliwag, Bulacan.
-          </p>
-          <p class="indent-[40px] text-justify">
-            Based on the records of this office, the aforementioned individual has no derogatory record 
-            and is known to be a person of good moral character in the community.
-          </p>
-          <p class="indent-[40px] text-justify">
-            This certification is being issued upon the request of the interested party for <strong>{{ docData.purpose || 'whatever legal purpose it may serve' }}</strong>.
-          </p>
+          <template v-if="docData.requested_for_others && docData.requested_for_name">
+            <p class="indent-[40px] text-justify">
+              This is to certify that <strong>{{ docData.requested_for_name }}</strong> is a bonafide resident of 
+              <strong> {{ docData.addres_street }}</strong>, Barangay Fortune, Baliwag, Bulacan.
+            </p>
+            <p class="indent-[40px] text-justify">
+              Based on the records of this office, the aforementioned individual has no derogatory record 
+              and is known to be a person of good moral character in the community.
+            </p>
+            <p class="indent-[40px] text-justify">
+              This certification is being issued upon the request of <strong>{{ docData.first_name }} {{ docData.middle_name ? docData.middle_name + ' ' : '' }}{{ docData.last_name }}</strong> (authorized representative) for <strong>{{ docData.purpose || 'whatever legal purpose it may serve' }}</strong>.
+            </p>
+          </template>
+          <template v-else>
+            <p class="indent-[40px] text-justify">
+              This is to certify that <strong>{{ docData.first_name }} {{ docData.middle_name ? docData.middle_name + ' ' : '' }}{{ docData.last_name }}</strong>, 
+              of legal age, <strong>{{ docData.civil_status || 'Single' }}</strong>, is a bonafide resident of 
+              <strong> {{ docData.addres_street }}</strong>, Barangay Fortune, Baliwag, Bulacan.
+            </p>
+            <p class="indent-[40px] text-justify">
+              Based on the records of this office, the aforementioned individual has no derogatory record 
+              and is known to be a person of good moral character in the community.
+            </p>
+            <p class="indent-[40px] text-justify">
+              This certification is being issued upon the request of the interested party for <strong>{{ docData.purpose || 'whatever legal purpose it may serve' }}</strong>.
+            </p>
+          </template>
           <p class="indent-[40px] mt-[30px]">
             Issued this <strong>{{ today }}</strong> at Barangay Fortune, Baliwag, Bulacan.
           </p>

@@ -12,10 +12,11 @@ router.use(verifyToken);
 router.use(requireRole(['Staff', 'Admin']));
 
 // 1. Fetch Pending and Ready to Print requests (Now includes ID Image!)
-// 1. Fetch Pending and Ready to Print requests (Now includes or_number)
+// 1. Fetch Pending and Ready to Print requests (Now includes requested_for_others, requested_for_name, authorization_proof)
 router.get('/pending-requests', (req, res) => {
     const sql = `
         SELECT req.request_id, req.status, req.date_requested, req.purpose, req.requirement_file, req.or_number,
+               req.requested_for_others, req.requested_for_name, req.authorization_proof,
                res.first_name, res.last_name, res.id_proof_image, 
                doc.doc_name, doc.base_fee, q.daily_sequence_no
         FROM Document_RequestTable req
@@ -34,7 +35,7 @@ router.get('/pending-requests', (req, res) => {
 // 2. Fetch full resident details to generate the printable certificate
 router.get('/print-details/:id', (req, res) => {
     const sql = `
-        SELECT req.request_id, req.date_requested, 
+        SELECT req.request_id, req.date_requested, req.requested_for_others, req.requested_for_name,
                res.first_name, res.middle_name, res.last_name, res.addres_street, res.civil_status, res.id_proof_image
         FROM Document_RequestTable req
         JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
@@ -212,7 +213,7 @@ router.put('/update-status/:id', (req, res) => {
 // GET: Fetch all data needed to print a specific document
 router.get('/print-data/:id', (req, res) => {
     const sql = `
-        SELECT req.request_id, req.date_requested, req.purpose, 
+        SELECT req.request_id, req.date_requested, req.purpose, req.requested_for_others, req.requested_for_name,
                res.first_name, res.last_name, res.middle_name, res.addres_street, res.civil_status,
                doc.doc_name, doc.base_fee
         FROM Document_RequestTable req
@@ -240,15 +241,14 @@ router.get('/print-data/:id', (req, res) => {
 });
 
 // PUT: Reject a document and log the reason
-// PUT: Reject a document with a reason
 router.put('/reject/:id', (req, res) => {
     const requestId = req.params.id;
     const { reason } = req.body;
     const official_id = req.user.id;
 
-    // 1. Fetch names and requirement_file for the log and cleanup
+    // 1. Fetch names, requirement_file, and authorization_proof for the log and cleanup
     const nameSql = `
-        SELECT res.first_name, res.last_name, res.email_address, doc.doc_name, off.full_name as staff_name, req.requirement_file
+        SELECT res.first_name, res.last_name, res.email_address, doc.doc_name, off.full_name as staff_name, req.requirement_file, req.authorization_proof
         FROM Document_RequestTable req
         JOIN Resident_ProfileTable res ON req.resident_id = res.resident_id
         JOIN Document_TemplateTable doc ON req.doc_type_id = doc.doc_type_id
@@ -261,6 +261,7 @@ router.put('/reject/:id', (req, res) => {
         const docName = nameRes.length > 0 ? nameRes[0].doc_name : 'Document';
         const staffName = nameRes.length > 0 && nameRes[0].staff_name ? nameRes[0].staff_name : 'Staff';
         const requirementFile = nameRes.length > 0 ? nameRes[0].requirement_file : null;
+        const authorizationProof = nameRes.length > 0 ? nameRes[0].authorization_proof : null;
 
         // 2. Change the status to Rejected
         const sql = `UPDATE Document_RequestTable SET status = 'Rejected', remarks = ? WHERE request_id = ?`;
@@ -268,13 +269,20 @@ router.put('/reject/:id', (req, res) => {
         db.query(sql, [reason, requestId], (err, result) => {
             if (err) return res.status(500).json({ error: "Database error" });
 
-            // 3. Garbage Collection: Delete the physical file from the server
+            // 3. Garbage Collection: Delete physical files from the server
             if (requirementFile) {
-                // Ensure we resolve from the server root
                 const filePath = path.join(process.cwd(), requirementFile);
                 fs.unlink(filePath, (unlinkErr) => {
                     if (unlinkErr && unlinkErr.code !== 'ENOENT') {
                         console.error(`Failed to delete file ${filePath}:`, unlinkErr);
+                    }
+                });
+            }
+            if (authorizationProof) {
+                const authPath = path.join(process.cwd(), authorizationProof);
+                fs.unlink(authPath, (unlinkErr) => {
+                    if (unlinkErr && unlinkErr.code !== 'ENOENT') {
+                        console.error(`Failed to delete authorization proof ${authPath}:`, unlinkErr);
                     }
                 });
             }
@@ -334,7 +342,7 @@ router.put('/no-show/:id', (req, res) => {
 // GET: Fetch full transaction receipt by Request ID
 router.get('/receipt/:requestId', (req, res) => {
     const sql = `
-        SELECT req.request_id, req.status, req.date_requested, req.or_number,
+        SELECT req.request_id, req.status, req.date_requested, req.or_number, req.requested_for_others, req.requested_for_name,
                res.first_name, res.last_name, 
                doc.doc_name, doc.base_fee,
                req.processed_by
@@ -361,7 +369,7 @@ router.get('/receipt/:requestId', (req, res) => {
 // GET: Fetch all completed, rejected, or cancelled document records
 router.get('/document-records', (req, res) => {
     const sql = `
-        SELECT req.request_id, req.status, req.date_requested, req.purpose, req.remarks, req.or_number,
+        SELECT req.request_id, req.status, req.date_requested, req.purpose, req.remarks, req.or_number, req.requested_for_others, req.requested_for_name,
                res.first_name, res.last_name, 
                doc.doc_name, q.daily_sequence_no
         FROM Document_RequestTable req
