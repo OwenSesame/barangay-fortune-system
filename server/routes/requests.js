@@ -179,7 +179,7 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
     db.query(duplicateCheckSql, queryParams, (dupErr, dupRes) => {
         if (dupErr) {
             unlock();
-            return res.status(500).json({ error: "Database error during spam check." });
+            return res.status(500).json({ error: dupErr.message || "Database error during spam check." });
         }
         if (dupRes.length > 0) {
             unlock();
@@ -242,7 +242,7 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
             db.query(countSql, [scheduled_date], (countErr, countResult) => {
                 if (countErr) {
                     unlock();
-                    return res.status(500).json({ error: "Failed to generate queue number." });
+                    return res.status(500).json({ error: countErr.message || "Failed to generate queue number." });
                 }
 
                 const count = countResult.length > 0 ? Object.values(countResult[0])[0] : 0;
@@ -261,7 +261,7 @@ router.post('/submit', verifyToken, requireRole(['Resident']), upload.fields([{ 
                 db.query(sql, [resident_id, doc_type_id, purpose, requirement_file, scheduled_date, isForOthers ? 1 : 0, trimmedRequestedForName, isForOthers ? authorization_proof : null], (err, result) => {
                     if (err) {
                         unlock();
-                        return res.status(500).json({ error: "Failed to save request." });
+                        return res.status(500).json({ error: err.message || "Failed to save request." });
                     }
 
                     const requestId = result.insertId;
